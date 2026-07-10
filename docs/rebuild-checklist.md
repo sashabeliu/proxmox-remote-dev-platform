@@ -41,13 +41,21 @@ Checklist:
 - replace placeholder values in the required tracked sanitized files using private local values
 - verify no placeholder values remain before applying any change
 
-Suggested validation command from repo root:
+Suggested validation commands from repo root:
 ```bash
-grep -R "<REPLACE_ME>" tofu ansible/group_vars || true
+scripts/validate_repo_safety.sh --mode repo
+scripts/validate_repo_safety.sh --mode deploy
+```
+
+Windows:
+```text
+scripts\\validate_repo_safety.cmd --mode repo
+scripts\\validate_repo_safety.cmd --mode deploy
 ```
 
 Expected result:
-- no remaining placeholder values in files intended for execution
+- `--mode repo` passes before commit/push
+- `--mode deploy` passes only after execution-critical placeholders are replaced in a private working copy
 
 ## Phase 3 - Restore Proxmox baseline assets
 

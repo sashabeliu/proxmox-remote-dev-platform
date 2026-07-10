@@ -1,0 +1,45 @@
+* text=auto
+
+# Linux / infra / config files should stay LF for predictable execution.
+*.sh text eol=lf
+*.py text eol=lf
+*.tf text eol=lf
+*.tfvars text eol=lf
+*.hcl text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.ini text eol=lf
+*.env text eol=lf
+*.j2 text eol=lf
+*.md text eol=lf
+*.gitignore text eol=lf
+*.gitattributes text eol=lf
+
+# Windows helper entry points should stay CRLF for native UX.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary artifacts.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.zip binary
+*.7z binary
+*.gz binary
+*.tar binary
+*.tgz binary
+*.mp4 binary
+*.mov binary
+*.mkv binary
+*.wav binary
+*.mp3 binary
+*.qcow2 binary
+*.img binary
+*.raw binary
+*.vmdk binary
+*.p12 binary
+*.pfx binary

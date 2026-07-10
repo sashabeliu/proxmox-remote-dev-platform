@@ -17,14 +17,19 @@ The target outcome is:
 1. Read `docs/rebuild-checklist.md` for the operator sequence.
 2. Read `docs/state-vs-reproducible-assets.md` to understand what is rebuilt versus restored.
 3. Review `docs/current-risks.md` before trusting the platform as disaster-recovery ready.
-4. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
+4. Run repo-safety validation before commit/push:
+   - bash: `scripts/validate_repo_safety.sh --mode repo`
+   - Windows: `scripts\validate_repo_safety.cmd --mode repo`
+5. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
    - `tofu/proxmox.env`
    - `tofu/terraform.tfvars`
    - `ansible/group_vars/all.yml`
    - `ansible/group_vars/dev.yml`
    - `ansible/group_vars/gpu_dev.yml`
-5. Validate there are no placeholder values left before running apply/playbook steps.
-6. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
+6. Validate the private working copy before running apply/playbook steps:
+   - bash: `scripts/validate_repo_safety.sh --mode deploy`
+   - Windows: `scripts\validate_repo_safety.cmd --mode deploy`
+7. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
 
 ## Recovery flow
 
