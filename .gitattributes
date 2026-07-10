@@ -1,6 +1,7 @@
 * text=auto
 
 # Linux / infra / config files should stay LF for predictable execution.
+.githooks/* text eol=lf
 *.sh text eol=lf
 *.py text eol=lf
 *.tf text eol=lf
