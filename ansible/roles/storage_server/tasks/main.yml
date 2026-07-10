@@ -1,0 +1,30 @@
+- name: Install NFS server
+  apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: yes
+
+- name: Ensure export directory exists
+  file:
+    path: "{{ nfs_export_path }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0775"
+
+- name: Configure NFS exports
+  lineinfile:
+    path: /etc/exports
+    line: "{{ nfs_export_path }} {{ nfs_export_network }}({{ nfs_export_opts }})"
+    create: yes
+    state: present
+
+- name: Reload NFS exports
+  command: exportfs -ra
+  changed_when: false
+
+- name: Ensure NFS server is running
+  service:
+    name: nfs-kernel-server
+    state: started
+    enabled: yes

@@ -1,0 +1,89 @@
+- name: Ensure GRUB kernel flags include IOMMU and vfio-pci ids
+  ansible.builtin.lineinfile:
+    path: /etc/default/grub
+    regexp: '^GRUB_CMDLINE_LINUX_DEFAULT='
+    line: 'GRUB_CMDLINE_LINUX_DEFAULT="quiet intel_iommu=on vfio-pci.ids=10de:2786,10de:22bc"'
+  notify:
+    - update grub
+    - rebuild initramfs
+    - reboot proxmox host
+
+- name: Ensure VFIO modules load on boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/vfio.conf
+    mode: "0644"
+    content: |
+      vfio
+      vfio_iommu_type1
+      vfio_pci
+      vfio_virqfd
+  notify:
+    - rebuild initramfs
+    - reboot proxmox host
+
+- name: Configure VFIO PCI binding
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/vfio.conf
+    mode: "0644"
+    content: |
+      options vfio-pci ids=10de:2786,10de:22bc
+  notify:
+    - rebuild initramfs
+    - reboot proxmox host
+
+- name: Blacklist conflicting NVIDIA framebuffer modules
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/blacklist-nvidia.conf
+    mode: "0644"
+    content: |
+      blacklist nouveau
+      blacklist nvidiafb
+  notify:
+    - rebuild initramfs
+    - reboot proxmox host
+
+- name: Ensure VFIO loads before snd_hda_intel
+  ansible.builtin.copy:
+    dest: /etc/modprobe.d/vfio-pci-override.conf
+    mode: "0644"
+    content: |
+      softdep snd_hda_intel pre: vfio-pci
+  notify:
+    - rebuild initramfs
+    - reboot proxmox host
+
+- name: Flush handlers so reboot happens before validation
+  meta: flush_handlers
+
+- name: Check GPU VGA binding
+  ansible.builtin.command: lspci -nnk -s 01:00.0
+  register: gpu_vga_info
+  changed_when: false
+
+- name: Check GPU audio binding
+  ansible.builtin.command: lspci -nnk -s 01:00.1
+  register: gpu_audio_info
+  changed_when: false
+
+- name: Check loaded VFIO modules
+  ansible.builtin.shell: lsmod | grep vfio
+  register: vfio_modules
+  changed_when: false
+
+- name: Assert GPU VGA is bound to vfio-pci
+  ansible.builtin.assert:
+    that:
+      - "'Kernel driver in use: vfio-pci' in gpu_vga_info.stdout"
+    fail_msg: "GPU VGA function is not bound to vfio-pci."
+
+- name: Assert GPU audio is bound to vfio-pci
+  ansible.builtin.assert:
+    that:
+      - "'Kernel driver in use: vfio-pci' in gpu_audio_info.stdout"
+    fail_msg: "GPU audio function is not bound to vfio-pci."
+
+- name: Assert VFIO modules are loaded
+  ansible.builtin.assert:
+    that:
+      - "'vfio_pci' in vfio_modules.stdout"
+    fail_msg: "VFIO modules are not loaded."

@@ -1,0 +1,33 @@
+# Example only. Do not commit real values.
+
+proxmox_endpoint = "https://proxmox.example:8006/api2/json"
+proxmox_insecure = true
+
+target_node    = "pve"
+template_vm_id = 9000
+bridge         = "vmbr0"
+ci_user        = "ubuntu"
+ssh_public_key = "ssh-ed25519 AAAA... example@example"
+
+dev_vms = {
+  dev-00 = {
+    vm_id         = 110
+    cpu_cores     = 5
+    memory_mb     = 8192
+    disk_gb       = 80
+    ip_cidr       = "192.168.1.110/24"
+    gateway       = "192.168.1.1"
+    ansible_group = "dev"
+  }
+}
+
+gpu_dev_vms = {
+  gpu-dev-01 = {
+    vm_id     = 121
+    cpu_cores = 16
+    memory_mb = 16384
+    disk_gb   = 80
+    ip_cidr   = "192.168.1.121/24"
+    gateway   = "192.168.1.1"
+  }
+}

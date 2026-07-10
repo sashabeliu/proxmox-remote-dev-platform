@@ -1,0 +1,22 @@
+- name: Build project images when enabled
+  ansible.builtin.command: docker compose build
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  when: item.auto_build | default(false)
+
+- name: Start project containers when enabled
+  ansible.builtin.command: docker compose up -d
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  when: item.auto_start | default(false)
+
+- name: Run project smoke test when defined
+  ansible.builtin.command: docker compose exec -T dev {{ item.smoke_test_command }}
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  when:
+    - item.auto_start | default(false)
+    - item.smoke_test_command is defined

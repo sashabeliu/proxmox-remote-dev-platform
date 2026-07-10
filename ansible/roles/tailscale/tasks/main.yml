@@ -1,0 +1,53 @@
+- name: Install Tailscale
+  ansible.builtin.shell: |
+    curl -fsSL https://tailscale.com/install.sh | sh
+  args:
+    creates: /usr/bin/tailscale
+
+- name: Enable and start tailscaled
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Build base tailscale up command
+  ansible.builtin.set_fact:
+    tailscale_up_cmd: >-
+      tailscale up
+      --reset
+      --authkey={{ tailscale_auth_key }}
+      --hostname={{ inventory_hostname }}
+      {{ tailscale_args | default('') }}
+      {% if tailscale_tags is defined and tailscale_tags | length > 0 %}
+      --advertise-tags={{ tailscale_tags | join(',') }}
+      {% endif %}
+
+- name: Apply base Tailscale configuration
+  ansible.builtin.command: "{{ tailscale_up_cmd }}"
+  register: tailscale_up
+  no_log: false
+  changed_when: false
+
+- name: Wait briefly after joining Tailnet
+  ansible.builtin.pause:
+    seconds: 5
+  when: tailscale_exit_node is defined and tailscale_exit_node | length > 0
+
+- name: Apply exit node configuration
+  ansible.builtin.command: >
+    tailscale set
+    --exit-node={{ tailscale_exit_node }}
+    --exit-node-allow-lan-access={{ 'true' if tailscale_exit_node_allow_lan_access | default(true) else 'false' }}
+  when: tailscale_exit_node is defined and tailscale_exit_node | length > 0
+  register: tailscale_set_exit
+  changed_when: false
+
+- name: Read final Tailscale status
+  ansible.builtin.command: tailscale status --json
+  register: ts_final_status
+  changed_when: false
+
+- name: Show final Tailscale status
+  ansible.builtin.debug:
+    var: ts_final_status.stdout
+  when: tailscale_debug | default(false)

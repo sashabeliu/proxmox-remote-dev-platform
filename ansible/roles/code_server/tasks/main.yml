@@ -1,0 +1,31 @@
+- name: Install code-server
+  ansible.builtin.shell: |
+    curl -fsSL https://code-server.dev/install.sh | sh
+  args:
+    creates: /usr/bin/code-server
+
+- name: Ensure code-server config directory exists
+  ansible.builtin.file:
+    path: "/home/{{ docker_user }}/.config/code-server"
+    state: directory
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0755"
+
+- name: Write code-server config
+  ansible.builtin.copy:
+    dest: "/home/{{ docker_user }}/.config/code-server/config.yaml"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0600"
+    content: |
+      bind-addr: {{ code_server_bind_addr }}
+      auth: {{ code_server_auth }}
+      password: {{ code_server_password }}
+      cert: false
+
+- name: Enable and start code-server service
+  ansible.builtin.systemd:
+    name: "code-server@{{ docker_user }}"
+    enabled: true
+    state: started

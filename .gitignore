@@ -1,0 +1,73 @@
+# OpenTofu / Terraform local state
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraform.lock.hcl.local
+
+# Sensitive config
+*.env
+*.env.*
+!.env.example
+!tofu/proxmox.env
+terraform.tfvars
+!tofu/terraform.tfvars
+*.auto.tfvars
+*.tfvars.json
+secrets.*
+*.secret
+*.key
+*.pem
+*.p12
+*.pfx
+id_*
+!*.example
+
+# Python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Ansible
+*.retry
+ansible.log
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Generated outputs / binary artifacts
+outputs/
+artifacts/
+exports/
+backups/
+cache/
+*.iso
+*.qcow2
+*.img
+*.vmdk
+*.raw
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.mp4
+*.mov
+*.mkv
+*.png
+*.jpg
+*.jpeg
+*.wav
+*.mp3
+
+# Local notes
+*.local.md

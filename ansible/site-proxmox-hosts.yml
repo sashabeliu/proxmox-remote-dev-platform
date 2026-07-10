@@ -1,0 +1,4 @@
+- hosts: proxmox_hosts
+  become: yes
+  roles:
+    - proxmox_gpu_host

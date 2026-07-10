@@ -1,0 +1,25 @@
+docker_user: ubuntu
+workspace_root: /home/ubuntu/work
+shared_root: /mnt/shared
+storage_server_ip: 192.168.1.102
+storage_export_path: /srv/shared
+storage_mount_point: /mnt/shared
+storage_mount_opts: defaults
+
+dev_projects:
+  - name: example-project
+    repo_url: git@github.com:example/example-project.git
+    version: main
+    image: python:3.11
+    scaffold_docker: true
+    gpu_enabled: false
+    torch_install_mode: cpu
+    github_owner: example
+    github_repo: example-project
+    auto_build: false
+    auto_start: false
+    smoke_test_command: pytest -q
+
+code_server_bind_addr: 0.0.0.0:8080
+code_server_auth: password
+code_server_password: replace-me

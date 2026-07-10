@@ -1,0 +1,26 @@
+- name: Install required packages
+  ansible.builtin.apt:
+    name:
+      - ubuntu-drivers-common
+    state: present
+    update_cache: yes
+
+- name: Detect recommended NVIDIA driver
+  ansible.builtin.command: ubuntu-drivers devices
+  register: nvidia_driver_info
+  changed_when: false
+
+- name: Install recommended NVIDIA driver
+  ansible.builtin.command: ubuntu-drivers autoinstall
+  register: nvidia_install
+  changed_when: true
+
+- name: Reboot after NVIDIA driver installation
+  ansible.builtin.reboot:
+    reboot_timeout: 600
+    test_command: uptime
+
+- name: Verify NVIDIA driver is installed
+  ansible.builtin.command: nvidia-smi
+  register: nvidia_smi_check
+  changed_when: false

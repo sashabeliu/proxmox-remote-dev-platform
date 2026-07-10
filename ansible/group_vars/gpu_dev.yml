@@ -1,0 +1,27 @@
+docker_user: ubuntu
+workspace_root: /home/ubuntu/work
+shared_root: /mnt/shared
+
+storage_server_ip: "192.168.1.102"
+storage_export_path: "/srv/shared"
+storage_mount_point: "/mnt/shared"
+storage_mount_opts: "defaults,_netdev"
+
+dev_projects:
+  - name: iris-poc
+    repo_url: "git@github.com:iris-insight/iris-poc.git"
+    version: "main"
+    image: "iris-dev:latest"
+    scaffold_docker: true
+    gpu_enabled: true
+    torch_install_mode: "cuda"
+    index_url: "https://download.pytorch.org/whl/cu126"
+    github_owner: "iris-insight"
+    github_repo: "iris-poc"
+    auto_build: true
+    auto_start: true
+    smoke_test_command: "./smoke_test.sh"
+
+code_server_bind_addr: "0.0.0.0:8080"
+code_server_auth: "password"
+code_server_password: "<REPLACE_ME>"

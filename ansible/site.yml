@@ -1,0 +1,33 @@
+- hosts: dev
+  become: yes
+  roles:
+    - tailscale
+    - common
+    - docker
+    - storage_client
+    - git_ssh
+    - github_deploy_key
+    - git_workspace
+    - code_server
+    - project_bringup
+
+- hosts: gpu_dev
+  become: yes
+  roles:
+    - tailscale
+    - common
+    - docker
+    - nvidia_driver
+    - nvidia_container_toolkit
+    - storage_client
+    - git_ssh
+    - github_deploy_key
+    - git_workspace
+    - code_server
+    - project_bringup
+
+- hosts: storage
+  become: yes
+  roles:
+    - common
+    - storage_server

@@ -1,0 +1,20 @@
+- name: Install NFS client package
+  apt:
+    name: nfs-common
+    state: present
+
+- name: Create shared mount point
+  file:
+    path: "{{ storage_mount_point }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Mount shared NFS storage
+  ansible.posix.mount:
+    src: "{{ storage_server_ip }}:{{ storage_export_path }}"
+    path: "{{ storage_mount_point }}"
+    fstype: nfs
+    opts: "{{ storage_mount_opts }}"
+    state: mounted

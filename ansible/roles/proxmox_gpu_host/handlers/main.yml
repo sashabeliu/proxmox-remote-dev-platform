@@ -1,0 +1,10 @@
+- name: update grub
+  ansible.builtin.command: update-grub
+
+- name: rebuild initramfs
+  ansible.builtin.command: update-initramfs -u -k all
+
+- name: reboot proxmox host
+  ansible.builtin.reboot:
+    reboot_timeout: 900
+    test_command: uptime

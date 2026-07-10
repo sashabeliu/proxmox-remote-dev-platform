@@ -1,0 +1,14 @@
+common_packages:
+  - git
+  - curl
+  - htop
+  - unzip
+  - ca-certificates
+  - python3-pip
+  - python3-venv
+
+tailscale_auth_key: "<REPLACE_ME>"
+tailscale_args: "--ssh"
+tailscale_exit_node: "tailscale-redundent.tail20bec0.ts.net"
+tailscale_exit_node_allow_lan_access: true
+tailscale_debug: false

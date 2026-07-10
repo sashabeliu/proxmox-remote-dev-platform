@@ -1,0 +1,29 @@
+services:
+  dev:
+    build:
+      context: {{ workspace_root }}/{{ item.name }}
+      dockerfile: Dockerfile
+
+    image: {{ item.image }}
+    container_name: {{ item.name }}-dev
+    working_dir: /workspace
+
+    volumes:
+      - {{ workspace_root }}/{{ item.name }}:/workspace
+      - {{ shared_root }}/data:/workspace/data
+      - {{ shared_root }}/yolo_models:/workspace/yolo_models
+      - {{ shared_root }}/users:/workspace/users
+
+{% if item.gpu_enabled | default(false) %}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+{% endif %}
+
+    stdin_open: true
+    tty: true
+    restart: unless-stopped

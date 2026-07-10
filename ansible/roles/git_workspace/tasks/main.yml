@@ -1,0 +1,117 @@
+- name: Ensure workspace root exists
+  ansible.builtin.file:
+    path: "{{ workspace_root }}"
+    state: directory
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0755"
+
+- name: Ensure per-user shared directory exists
+  ansible.builtin.file:
+    path: "{{ shared_root }}/users/{{ docker_user }}"
+    state: directory
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0775"
+
+- name: Clone or initialize project repos via SSH
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.git:
+    repo: "{{ item.repo_url }}"
+    dest: "{{ workspace_root }}/{{ item.name }}"
+    version: "{{ item.version }}"
+    key_file: "/home/{{ docker_user }}/.ssh/git_ed25519"
+    accept_newhostkey: true
+    update: false
+  loop: "{{ dev_projects }}"
+
+- name: Deploy Dockerfile for scaffolded projects
+  ansible.builtin.template:
+    src: Dockerfile.j2
+    dest: "{{ workspace_root }}/{{ item.name }}/Dockerfile"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0644"
+  loop: "{{ dev_projects }}"
+  when: item.scaffold_docker | default(false)
+
+- name: Deploy compose.yaml for each project
+  ansible.builtin.template:
+    src: compose.yml.j2
+    dest: "{{ workspace_root }}/{{ item.name }}/compose.yaml"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0644"
+  loop: "{{ dev_projects }}"
+
+- name: Deploy smoke test script
+  ansible.builtin.template:
+    src: smoke_test.sh.j2
+    dest: "{{ workspace_root }}/{{ item.name }}/smoke_test.sh"
+    owner: "{{ docker_user }}"
+    group: "{{ docker_user }}"
+    mode: "0755"
+  loop: "{{ dev_projects }}"
+
+- name: Build and start project containers
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.shell: |
+    docker compose up -d --build
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  when:
+    - item.auto_start | default(false)
+    - item.auto_build | default(false)
+
+- name: Start project containers without rebuild
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.shell: |
+    docker compose up -d
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  when:
+    - item.auto_start | default(false)
+    - not (item.auto_build | default(false))
+
+- name: Check running compose services
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.shell: |
+    docker compose ps --status running --services
+  args:
+    chdir: "{{ workspace_root }}/{{ item.name }}"
+  loop: "{{ dev_projects }}"
+  register: compose_running_services
+  changed_when: false
+
+- name: Show compose status and logs when dev service is not running
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.shell: |
+    docker compose ps
+    echo "-----"
+    docker compose logs --no-color --tail=100
+  args:
+    chdir: "{{ workspace_root }}/{{ item.item.name }}"
+  loop: "{{ compose_running_services.results }}"
+  when:
+    - item.item.auto_start | default(false)
+    - "'dev' not in item.stdout_lines"
+  changed_when: false
+
+- name: Run smoke test inside container
+  become: yes
+  become_user: "{{ docker_user }}"
+  ansible.builtin.shell: |
+    docker compose exec -T dev {{ item.item.smoke_test_command }}
+  args:
+    chdir: "{{ workspace_root }}/{{ item.item.name }}"
+  loop: "{{ compose_running_services.results }}"
+  when:
+    - item.item.auto_start | default(false)
+    - "'dev' in item.stdout_lines"

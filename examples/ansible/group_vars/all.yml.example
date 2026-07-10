@@ -1,0 +1,10 @@
+common_packages:
+  - curl
+  - git
+  - vim
+
+tailscale_auth_key: "replace-me"
+tailscale_args: ""
+tailscale_exit_node: ""
+tailscale_exit_node_allow_lan_access: true
+tailscale_debug: false
