@@ -4,6 +4,11 @@
 
 Recover from a clean machine to a working remote development platform in the minimum practical time.
 
+## Read this with
+- `docs/rebuild-checklist.md`
+- `docs/state-vs-reproducible-assets.md`
+- `docs/current-risks.md`
+
 ## Rebuild phases
 
 ### Phase 0 - External prerequisites
@@ -24,8 +29,8 @@ Prepare and verify:
 
 ### Phase 2 - Recover repo and secrets
 - clone this repository
-- restore required secret files from secure backup location
-- inject environment and variable files that are intentionally excluded from git
+- restore required secret values into tracked sanitized files or runtime-only private paths
+- verify there are no unresolved placeholders before apply steps
 
 ### Phase 3 - Configure Proxmox baseline
 - apply host-level configuration steps
@@ -62,3 +67,4 @@ This document should evolve into an exact command-level recovery runbook with:
 - exact required files
 - expected outputs
 - rollback notes
+- links to rehearsed recovery evidence

@@ -12,6 +12,55 @@ The target outcome is:
 - separate reproducible infrastructure from stateful data and secrets
 - document the architecture in a way that is understandable as a portfolio project
 
+## Quick start
+
+1. Read `docs/rebuild-checklist.md` for the operator sequence.
+2. Read `docs/state-vs-reproducible-assets.md` to understand what is rebuilt versus restored.
+3. Review `docs/current-risks.md` before trusting the platform as disaster-recovery ready.
+4. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
+   - `tofu/proxmox.env`
+   - `tofu/terraform.tfvars`
+   - `ansible/group_vars/all.yml`
+   - `ansible/group_vars/dev.yml`
+   - `ansible/group_vars/gpu_dev.yml`
+5. Validate there are no placeholder values left before running apply/playbook steps.
+6. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
+
+## Recovery flow
+
+The intended long-term rebuild order is:
+1. prepare clean host prerequisites
+2. install and baseline Proxmox host
+3. restore this repo and secret material
+4. restore template VM and Proxmox-specific baseline
+5. provision guests with OpenTofu
+6. render inventory and configure guests with Ansible
+7. restore shared data and application state
+8. validate SSH, storage, GPU, Docker, Tailscale, and developer workflows
+
+See:
+- `docs/rebuild-from-zero.md`
+- `docs/rebuild-checklist.md`
+- `docs/backup-strategy.md`
+
+## Documentation guide
+
+Architecture and platform overview:
+- `docs/architecture.md`
+- `docs/topology.md`
+- `docs/portfolio-summary.md`
+
+Recovery and operations:
+- `docs/rebuild-from-zero.md`
+- `docs/rebuild-checklist.md`
+- `docs/backup-strategy.md`
+- `docs/secrets-strategy.md`
+- `docs/current-risks.md`
+- `docs/state-vs-reproducible-assets.md`
+
+Observed live-state snapshot:
+- `docs/proxmox-current-state.md`
+
 ## Current scope
 
 This repo is intended to hold:
@@ -42,27 +91,16 @@ proxmox-remote-dev-platform/
     topology.md
     proxmox-current-state.md
     rebuild-from-zero.md
+    rebuild-checklist.md
     backup-strategy.md
     secrets-strategy.md
+    current-risks.md
+    state-vs-reproducible-assets.md
     portfolio-summary.md
   tofu/
-    README.md
   ansible/
-    README.md
   scripts/
-    README.md
   examples/
-    README.md
-    tofu/
-      terraform.tfvars.example
-      proxmox.env.example
-    ansible/
-      hosts.ini.example
-      group_vars/
-        all.yml.example
-        dev.yml.example
-        gpu_dev.yml.example
-        storage.yml.example
   .gitignore
 ```
 
@@ -82,26 +120,17 @@ Runtime/data layer:
 - app repo example discovered on dev VMs: `iris-poc`
 - runtime outputs and datasets are outside the scope of git and require backup policy
 
-## Build strategy
+## Current status
 
-The intended long-term build order is:
-1. prepare clean host prerequisites
-2. configure Proxmox host baseline
-3. provision VMs with OpenTofu
-4. render inventory for Ansible
-5. configure guests with Ansible
-6. restore stateful data from backup
-7. validate access, storage, GPU, and developer workflows
+Current repo state:
+- local baseline was created and pushed to GitHub
+- sanitized OpenTofu and Ansible content has been imported into the repo
+- same-path sanitized placeholders are being used for clarity
+- the platform is documented, but not yet fully disaster-recovery hardened
 
-## Next implementation steps
-
-1. import and sanitize the existing `~/infra/tofu` content into `tofu/`
-2. import and sanitize the existing `~/infra-ansible` content into `ansible/`
-3. replace live secrets with examples plus documented secret injection flow
-4. add exact rebuild commands and validation steps
-5. define external backup locations for secrets, state, and shared data
-6. optionally publish the repo to GitHub once sanitized
-
-## Status
-
-Initial scaffold created locally. This is a documentation-first baseline, not yet a full export of the live infrastructure.
+Known remaining work:
+- finish exact command-level rebuild runbooks
+- move or protect live secrets with a stronger secret-management workflow
+- define a safer OpenTofu state strategy
+- configure and test real backup jobs
+- capture application-level drift and restore rules for guest workloads
