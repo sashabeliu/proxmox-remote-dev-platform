@@ -27,4 +27,10 @@ This directory contains helper scripts that support:
 - `validate_repo_safety.cmd`
   - Windows-friendly wrapper for the shell validator
 
+- `install_git_hooks.sh`
+  - configures `core.hooksPath` to use the repo-managed hooks in `.githooks/`
+
+- `install_git_hooks.cmd`
+  - Windows-friendly wrapper for hook installation via `git config core.hooksPath .githooks`
+
 Only scripts that are safe to publish and maintain should be copied here.

@@ -17,19 +17,23 @@ The target outcome is:
 1. Read `docs/rebuild-checklist.md` for the operator sequence.
 2. Read `docs/state-vs-reproducible-assets.md` to understand what is rebuilt versus restored.
 3. Review `docs/current-risks.md` before trusting the platform as disaster-recovery ready.
-4. Run repo-safety validation before commit/push:
+4. Install the repo-managed git hooks:
+   - bash: `scripts/install_git_hooks.sh`
+   - Windows: `scripts\install_git_hooks.cmd`
+5. Run repo-safety validation before commit/push:
    - bash: `scripts/validate_repo_safety.sh --mode repo`
    - Windows: `scripts\validate_repo_safety.cmd --mode repo`
-5. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
+   - GitHub Actions also runs this check on push and pull request via `.github/workflows/repo-safety.yml`
+6. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
    - `tofu/proxmox.env`
    - `tofu/terraform.tfvars`
    - `ansible/group_vars/all.yml`
    - `ansible/group_vars/dev.yml`
    - `ansible/group_vars/gpu_dev.yml`
-6. Validate the private working copy before running apply/playbook steps:
+7. Validate the private working copy before running apply/playbook steps:
    - bash: `scripts/validate_repo_safety.sh --mode deploy`
    - Windows: `scripts\validate_repo_safety.cmd --mode deploy`
-7. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
+8. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
 
 ## Recovery flow
 
@@ -60,6 +64,7 @@ Recovery and operations:
 - `docs/rebuild-checklist.md`
 - `docs/backup-strategy.md`
 - `docs/secrets-strategy.md`
+- `docs/private-secret-bundle-workflow.md`
 - `docs/current-risks.md`
 - `docs/state-vs-reproducible-assets.md`
 
@@ -99,6 +104,7 @@ proxmox-remote-dev-platform/
     rebuild-checklist.md
     backup-strategy.md
     secrets-strategy.md
+    private-secret-bundle-workflow.md
     current-risks.md
     state-vs-reproducible-assets.md
     portfolio-summary.md

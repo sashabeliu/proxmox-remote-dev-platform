@@ -71,3 +71,4 @@ cache/
 
 # Local notes
 *.local.md
+.hermes/

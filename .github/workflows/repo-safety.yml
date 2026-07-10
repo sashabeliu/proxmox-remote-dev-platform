@@ -1,0 +1,16 @@
+name: repo-safety
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate-repo-safety:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run repo safety validation
+        shell: bash
+        run: bash scripts/validate_repo_safety.sh --mode repo

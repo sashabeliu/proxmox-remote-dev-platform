@@ -38,6 +38,7 @@ Validation:
 Checklist:
 - clone this repository
 - review `docs/current-risks.md`
+- review `docs/private-secret-bundle-workflow.md`
 - replace placeholder values in the required tracked sanitized files using private local values
 - verify no placeholder values remain before applying any change
 
