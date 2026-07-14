@@ -26,6 +26,7 @@ Checklist:
 - verify SSH access as operator
 - verify local storage and thinpool availability
 - confirm any required PCI / GPU passthrough prerequisites on the host
+- review `docs/proxmox-host-baseline.md`
 
 Validation:
 - Proxmox web UI reachable
@@ -39,6 +40,7 @@ Checklist:
 - clone this repository
 - review `docs/current-risks.md`
 - review `docs/private-secret-bundle-workflow.md`
+- review `docs/ansible-control-bootstrap.md`
 - materialize private values with `scripts/materialize_private_config.sh --bundle-root <private-bundle-root>` or the Windows wrapper
 - replace placeholder values in the required tracked sanitized files using private local values
 - verify no placeholder values remain before applying any change
@@ -66,6 +68,7 @@ Checklist:
 - restore any required Proxmox host configuration not yet fully automated
 - verify GPU passthrough mapping if GPU guests are required
 - verify `target_node`, `template_vm_id`, and network assumptions in `tofu/terraform.tfvars`
+- review `docs/template-vm-recovery.md`
 
 Validation:
 - template VM exists
@@ -98,6 +101,8 @@ Checklist:
 - generate inventory using `scripts/render_inventory.py`
 - review `ansible/inventory/hosts.ini`
 - run Ansible playbooks from `ansible/`
+- review `docs/tailscale-recovery.md`
+- review `docs/storage-vm-recovery.md`
 
 Example flow:
 ```bash

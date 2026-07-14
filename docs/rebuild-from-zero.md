@@ -6,6 +6,11 @@ Recover from a clean machine to a working remote development platform in the min
 
 ## Read this with
 - `docs/rebuild-checklist.md`
+- `docs/proxmox-host-baseline.md`
+- `docs/template-vm-recovery.md`
+- `docs/ansible-control-bootstrap.md`
+- `docs/storage-vm-recovery.md`
+- `docs/tailscale-recovery.md`
 - `docs/state-vs-reproducible-assets.md`
 - `docs/current-risks.md`
 

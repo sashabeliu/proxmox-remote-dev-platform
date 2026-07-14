@@ -66,6 +66,11 @@ Architecture and platform overview:
 Recovery and operations:
 - `docs/rebuild-from-zero.md`
 - `docs/rebuild-checklist.md`
+- `docs/proxmox-host-baseline.md`
+- `docs/template-vm-recovery.md`
+- `docs/ansible-control-bootstrap.md`
+- `docs/storage-vm-recovery.md`
+- `docs/tailscale-recovery.md`
 - `docs/backup-strategy.md`
 - `docs/secrets-strategy.md`
 - `docs/private-secret-bundle-workflow.md`
