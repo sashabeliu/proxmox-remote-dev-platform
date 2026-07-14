@@ -18,22 +18,26 @@ The target outcome is:
 2. Read `docs/state-vs-reproducible-assets.md` to understand what is rebuilt versus restored.
 3. Review `docs/current-risks.md` before trusting the platform as disaster-recovery ready.
 4. Install the repo-managed git hooks:
-   - bash: `scripts/install_git_hooks.sh`
+   - bash: `bash scripts/install_git_hooks.sh`
    - Windows: `scripts\install_git_hooks.cmd`
 5. Run repo-safety validation before commit/push:
-   - bash: `scripts/validate_repo_safety.sh --mode repo`
+   - bash: `bash scripts/validate_repo_safety.sh --mode repo`
    - Windows: `scripts\validate_repo_safety.cmd --mode repo`
    - GitHub Actions also runs this check on push and pull request via `.github/workflows/repo-safety.yml`
-6. Fill placeholder values in the tracked sanitized files only in your private working copy or in secret-managed deployment locations:
+6. Materialize private execution values into a private working copy:
+   - bash: `bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>`
+   - Windows: `scripts\materialize_private_config.cmd --bundle-root <private-bundle-root>`
+   - the bundle root may be either the repo-specific secret directory or its parent directory
+7. If you are copying values manually instead of using the helper, replace placeholders only in your private working copy or in secret-managed deployment locations:
    - `tofu/proxmox.env`
    - `tofu/terraform.tfvars`
    - `ansible/group_vars/all.yml`
    - `ansible/group_vars/dev.yml`
    - `ansible/group_vars/gpu_dev.yml`
-7. Validate the private working copy before running apply/playbook steps:
-   - bash: `scripts/validate_repo_safety.sh --mode deploy`
+8. Validate the private working copy before running apply/playbook steps:
+   - bash: `bash scripts/validate_repo_safety.sh --mode deploy`
    - Windows: `scripts\validate_repo_safety.cmd --mode deploy`
-8. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
+9. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
 
 ## Recovery flow
 

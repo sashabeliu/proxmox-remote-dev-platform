@@ -33,4 +33,12 @@ This directory contains helper scripts that support:
 - `install_git_hooks.cmd`
   - Windows-friendly wrapper for hook installation via `git config core.hooksPath .githooks`
 
+- `materialize_private_config.sh`
+  - copies unsanitized execution files from a private bundle into a private working copy
+  - supports `--bundle-root`, `--repo-root`, `--dry-run`, and `--skip-validate`
+  - runs deploy validation by default after copying
+
+- `materialize_private_config.cmd`
+  - Windows-friendly wrapper for private config materialization
+
 Only scripts that are safe to publish and maintain should be copied here.

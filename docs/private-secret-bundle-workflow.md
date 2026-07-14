@@ -66,7 +66,7 @@ Do not store the only copy on one machine.
 From repo root:
 
 ```bash
-scripts/validate_repo_safety.sh --mode repo
+bash scripts/validate_repo_safety.sh --mode repo
 ```
 
 Windows:
@@ -80,12 +80,30 @@ Expected result:
 
 ### Before running OpenTofu or Ansible
 1. Start from a clean private working copy of the repo.
-2. Copy the unsanitized files from the private bundle into the matching tracked paths.
+2. Materialize the unsanitized files from the private bundle into the matching tracked paths.
 3. Confirm you are operating in a private execution context, not a branch you intend to push.
 4. Run deploy validation.
 
+Bash:
+
 ```bash
-scripts/validate_repo_safety.sh --mode deploy
+bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>
+```
+
+Windows:
+
+```text
+scripts\materialize_private_config.cmd --bundle-root <private-bundle-root>
+```
+
+Notes:
+- the bundle root may be either the repo-specific secret directory itself or its parent directory
+- the helper refuses to copy files that still contain `<REPLACE_ME>` placeholders
+- deploy validation runs automatically after copying unless `--skip-validate` is used
+- use `--dry-run` to preview the copy plan
+
+```bash
+bash scripts/validate_repo_safety.sh --mode deploy
 ```
 
 Windows:

@@ -39,13 +39,14 @@ Checklist:
 - clone this repository
 - review `docs/current-risks.md`
 - review `docs/private-secret-bundle-workflow.md`
+- materialize private values with `scripts/materialize_private_config.sh --bundle-root <private-bundle-root>` or the Windows wrapper
 - replace placeholder values in the required tracked sanitized files using private local values
 - verify no placeholder values remain before applying any change
 
 Suggested validation commands from repo root:
 ```bash
-scripts/validate_repo_safety.sh --mode repo
-scripts/validate_repo_safety.sh --mode deploy
+bash scripts/validate_repo_safety.sh --mode repo
+bash scripts/validate_repo_safety.sh --mode deploy
 ```
 
 Windows:
