@@ -2,6 +2,9 @@
 
 This checklist is the operator-facing sequence for rebuilding the platform from zero.
 
+If you want the condensed version first, read:
+- `docs/disaster-recovery-order-of-operations.md`
+
 ## Phase 0 - Confirm prerequisites
 
 Before touching infrastructure, confirm all of the following are available:

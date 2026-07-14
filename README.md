@@ -64,6 +64,7 @@ Architecture and platform overview:
 - `docs/portfolio-summary.md`
 
 Recovery and operations:
+- `docs/disaster-recovery-order-of-operations.md`
 - `docs/rebuild-from-zero.md`
 - `docs/rebuild-checklist.md`
 - `docs/proxmox-host-baseline.md`

@@ -4,7 +4,11 @@
 
 Recover from a clean machine to a working remote development platform in the minimum practical time.
 
+If you want the short operator sequence first, start with:
+- `docs/disaster-recovery-order-of-operations.md`
+
 ## Read this with
+- `docs/disaster-recovery-order-of-operations.md`
 - `docs/rebuild-checklist.md`
 - `docs/proxmox-host-baseline.md`
 - `docs/template-vm-recovery.md`
