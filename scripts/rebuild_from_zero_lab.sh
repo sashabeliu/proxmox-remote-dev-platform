@@ -4,7 +4,7 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/rebuild_from_zero_lab.sh --proxmox-host <host-or-ip> [options]
+  scripts/rebuild_from_zero_lab.sh [--config <site.yml> | --proxmox-host <host-or-ip>] [options]
 
 Bootstrap a fresh/minimal Proxmox host. In handoff mode, the external runner creates
 VM101 ansible-control, prepares it, copies the private execution clone there, then
@@ -20,7 +20,8 @@ Options:
   --wipe-existing-guests-and-templates
                                      DANGEROUS: destroy all VMs, all CTs, and local LXC templates on the Proxmox host. Requires --apply.
   --destroy-existing                 Pass through to lab profile; destroys only VM110 and CT100. Requires --apply.
-  --private-bundle-root <path>       Materialize private config into this clone before running.
+  --private-bundle-root <path>       Materialize legacy private bundle into this clone before running.
+  --config <path>                    Materialize runtime files from one local site.yml config. Preferred over private clone.
   --bootstrap-runner                 Install local runner dependencies first; Debian/Ubuntu runner only.
   --with-provider-mirror             When bootstrapping runner/control VM, install bpg/proxmox provider mirror.
   --manage-apt-repos                 Let Proxmox bootstrap manage no-subscription/enterprise apt repo files.
@@ -54,6 +55,7 @@ APPLY=0
 WIPE_EXISTING_GUESTS_AND_TEMPLATES=0
 DESTROY_EXISTING=0
 PRIVATE_BUNDLE_ROOT=""
+SITE_CONFIG=""
 BOOTSTRAP_RUNNER=0
 WITH_PROVIDER_MIRROR=0
 MANAGE_APT_REPOS=0
@@ -63,11 +65,11 @@ MANAGE_API_TOKEN=0
 PULL_GENERATED_TOKEN=0
 CREATE_CONTROL_VM=0
 HANDOFF_TO_CONTROL=0
-CONTROL_VM_NAME="ansible-control"
-CONTROL_VM_ID=101
-CONTROL_VM_IP_CIDR="192.168.1.211/24"
-CONTROL_VM_GATEWAY="192.168.1.1"
-CONTROL_VM_CPU_TYPE="x86-64-v2"
+CONTROL_VM_NAME=""
+CONTROL_VM_ID=""
+CONTROL_VM_IP_CIDR=""
+CONTROL_VM_GATEWAY=""
+CONTROL_VM_CPU_TYPE=""
 CONTROL_VM_ANSIBLE_HOST=""
 CONTROL_PROXMOX_SSH_HOST=""
 CONTROL_PROXMOX_API_ENDPOINT=""
@@ -82,6 +84,7 @@ while [[ $# -gt 0 ]]; do
     --wipe-existing-guests-and-templates) WIPE_EXISTING_GUESTS_AND_TEMPLATES=1; shift ;;
     --destroy-existing) DESTROY_EXISTING=1; shift ;;
     --private-bundle-root) [[ $# -ge 2 ]] || { echo "error: --private-bundle-root requires value" >&2; exit 2; }; PRIVATE_BUNDLE_ROOT="$2"; shift 2 ;;
+    --config) [[ $# -ge 2 ]] || { echo "error: --config requires value" >&2; exit 2; }; SITE_CONFIG="$2"; shift 2 ;;
     --bootstrap-runner) BOOTSTRAP_RUNNER=1; shift ;;
     --with-provider-mirror) WITH_PROVIDER_MIRROR=1; shift ;;
     --manage-apt-repos) MANAGE_APT_REPOS=1; shift ;;
@@ -106,13 +109,49 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-[[ -n "$PROXMOX_HOST" ]] || { echo "error: --proxmox-host is required" >&2; usage; exit 2; }
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+ANSIBLE_DIR="$REPO_ROOT/ansible"
+TOFU_DIR="$REPO_ROOT/tofu"
+TMP_DIR="$(mktemp -d)"
+trap 'rm -rf "$TMP_DIR"' EXIT
+PROXMOX_INVENTORY="$TMP_DIR/proxmox-hosts.ini"
+PROXMOX_EXTRA_VARS="$TMP_DIR/proxmox-bootstrap-vars.yml"
+CONTROL_INVENTORY="$TMP_DIR/control.ini"
+CONTROL_VM_TFVARS="$TOFU_DIR/control-vm.auto.tfvars.json"
+SITE_ENV="$TMP_DIR/site-config.env"
+
+if [[ -n "$SITE_CONFIG" && -n "$PRIVATE_BUNDLE_ROOT" ]]; then
+  echo "error: use either --config or --private-bundle-root, not both" >&2
+  exit 2
+fi
+
+if [[ -n "$SITE_CONFIG" ]]; then
+  echo
+  echo "== Materialize local site config =="
+  python3 "$SCRIPT_DIR/materialize_site_config.py" --config "$SITE_CONFIG" --repo-root "$REPO_ROOT" --env-out "$SITE_ENV"
+  # shellcheck disable=SC1090
+  . "$SITE_ENV"
+  ANSIBLE_KEY_FILE="${ANSIBLE_KEY_FILE:-${SITE_ANSIBLE_KEY_FILE:-}}"
+  PROXMOX_HOST="${PROXMOX_HOST:-${SITE_PROXMOX_HOST:-}}"
+  POST_WIPE_PROXMOX_HOST="${POST_WIPE_PROXMOX_HOST:-${SITE_POST_WIPE_PROXMOX_HOST:-}}"
+  CONTROL_PROXMOX_SSH_HOST="${CONTROL_PROXMOX_SSH_HOST:-${SITE_CONTROL_PROXMOX_SSH_HOST:-}}"
+  CONTROL_PROXMOX_API_ENDPOINT="${CONTROL_PROXMOX_API_ENDPOINT:-${SITE_CONTROL_PROXMOX_API_ENDPOINT:-}}"
+  CONTROL_VM_NAME="${CONTROL_VM_NAME:-${SITE_CONTROL_VM_NAME:-ansible-control}}"
+  CONTROL_VM_ID="${CONTROL_VM_ID:-${SITE_CONTROL_VM_ID:-101}}"
+  CONTROL_VM_IP_CIDR="${CONTROL_VM_IP_CIDR:-${SITE_CONTROL_VM_IP_CIDR:-192.168.1.211/24}}"
+  CONTROL_VM_GATEWAY="${CONTROL_VM_GATEWAY:-${SITE_CONTROL_VM_GATEWAY:-192.168.1.1}}"
+  CONTROL_VM_CPU_TYPE="${CONTROL_VM_CPU_TYPE:-${SITE_CONTROL_VM_CPU_TYPE:-x86-64-v2}}"
+  export TOFU_APPLY_TIMEOUT_SECONDS="${TOFU_APPLY_TIMEOUT_SECONDS:-${SITE_TOFU_APPLY_TIMEOUT_SECONDS:-}}"
+fi
+
+[[ -n "$PROXMOX_HOST" ]] || { echo "error: --proxmox-host or config.proxmox.pre_wipe_ssh_host is required" >&2; usage; exit 2; }
 if [[ "$WIPE_EXISTING_GUESTS_AND_TEMPLATES" -eq 1 && "$APPLY" -ne 1 ]]; then
   echo "error: --wipe-existing-guests-and-templates requires --apply" >&2
   exit 2
 fi
 if [[ "$WIPE_EXISTING_GUESTS_AND_TEMPLATES" -eq 1 && -z "$POST_WIPE_PROXMOX_HOST" ]]; then
-  echo "error: --wipe-existing-guests-and-templates requires --post-wipe-proxmox-host" >&2
+  echo "error: --wipe-existing-guests-and-templates requires --post-wipe-proxmox-host or config.proxmox.post_wipe_ssh_host" >&2
   echo "The post-wipe SSH endpoint must be reachable without any Proxmox VM/CT/Tailscale LXC running." >&2
   exit 2
 fi
@@ -129,16 +168,11 @@ if [[ "$HANDOFF_TO_CONTROL" -eq 1 && ( "$CREATE_CONTROL_VM" -ne 1 || "$APPLY" -n
   exit 2
 fi
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
-ANSIBLE_DIR="$REPO_ROOT/ansible"
-TOFU_DIR="$REPO_ROOT/tofu"
-TMP_DIR="$(mktemp -d)"
-trap 'rm -rf "$TMP_DIR"' EXIT
-PROXMOX_INVENTORY="$TMP_DIR/proxmox-hosts.ini"
-PROXMOX_EXTRA_VARS="$TMP_DIR/proxmox-bootstrap-vars.yml"
-CONTROL_INVENTORY="$TMP_DIR/control.ini"
-CONTROL_VM_TFVARS="$TOFU_DIR/control-vm.auto.tfvars.json"
+CONTROL_VM_NAME="${CONTROL_VM_NAME:-ansible-control}"
+CONTROL_VM_ID="${CONTROL_VM_ID:-101}"
+CONTROL_VM_IP_CIDR="${CONTROL_VM_IP_CIDR:-192.168.1.211/24}"
+CONTROL_VM_GATEWAY="${CONTROL_VM_GATEWAY:-192.168.1.1}"
+CONTROL_VM_CPU_TYPE="${CONTROL_VM_CPU_TYPE:-x86-64-v2}"
 CONTROL_VM_ANSIBLE_HOST="${CONTROL_VM_ANSIBLE_HOST:-${CONTROL_VM_IP_CIDR%%/*}}"
 CONTROL_PROXMOX_SSH_HOST="${CONTROL_PROXMOX_SSH_HOST:-$PROXMOX_HOST}"
 CONTROL_PROXMOX_API_ENDPOINT="${CONTROL_PROXMOX_API_ENDPOINT:-https://${CONTROL_PROXMOX_SSH_HOST}:8006/}"

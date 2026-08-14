@@ -1,0 +1,127 @@
+# Copy this file outside the repository and fill real values there:
+#   mkdir -p ~/.config/proxmox-remote-dev-platform
+#   cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml
+#   chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml
+#
+# Real site.yml is sensitive. It may contain Proxmox API tokens, Tailscale auth
+# keys, code-server credentials, topology, and local key paths. Do not commit it.
+
+site:
+  name: proxmox-rulab
+  profile: lab
+
+external_runner:
+  # Private SSH key used by the external runner and copied to VM101.
+  ansible_key_file: ~/.ssh/ansible_ed25519
+
+proxmox:
+  # SSH endpoint from the external runner before wiping guests.
+  pre_wipe_ssh_host: proxmox-rulab
+  # SSH endpoint that remains reachable after all VMs/CTs are destroyed.
+  post_wipe_ssh_host: proxmox-rulab
+  # SSH/API endpoint VM101 should use after handoff.
+  control_ssh_host: 192.168.1.10
+  api_endpoint_external: https://192.168.2.10:8006/
+  api_endpoint_from_control_vm: https://192.168.1.10:8006/
+  api_token: "<REPLACE_ME_USER@REALM!TOKENID=SECRET>"
+  insecure: true
+  target_node: pve
+  template_vm_id: 9000
+  bridge: vmbr0
+  gateway: 192.168.1.1
+  lxc_template_storage: local
+  lxc_template_file: debian-12-standard_12.12-1_amd64.tar.zst
+
+control_vm:
+  name: ansible-control
+  vm_id: 101
+  ip_cidr: 192.168.1.211/24
+  gateway: 192.168.1.1
+  cpu_cores: 2
+  memory_mb: 2048
+  disk_gb: 20
+  cpu_type: x86-64-v2
+
+lab_profile:
+  tofu_apply_timeout_seconds: 180
+  ci_user: ubuntu
+
+  dev_vm:
+    name: dev-00
+    vm_id: 110
+    ip_cidr: 192.168.1.112/24
+    gateway: 192.168.1.1
+    cpu_cores: 4
+    memory_mb: 8192
+    disk_gb: 80
+    ansible_group: dev
+
+  # The production GPU profile is excluded by the lab script unless you
+  # explicitly run the full production playbook later.
+  gpu_dev_vms: {}
+
+  tailscale_lxc:
+    name: tailscale-rulab
+    vm_id: 100
+    ip_cidr: 192.168.1.212/24
+    gateway: 192.168.1.1
+    cpu_cores: 1
+    memory_mb: 1024
+    swap_mb: 1024
+    disk_gb: 8
+    datastore_id: local-lvm
+    template_file_id: local:vztmpl/debian-12-standard_12.12-1_amd64.tar.zst
+    ostype: debian
+    unprivileged: false
+    enable_tun_passthrough: false
+    auth_key: "<REPLACE_ME_TSKEY_AUTH>"
+    args: "--ssh"
+    advertise_routes:
+      - 192.168.2.0/24
+    advertise_exit_node: false
+    accept_routes: false
+    remap_enabled: true
+    real_subnet: 192.168.1.0/24
+    tailnet_subnet: 192.168.2.0/24
+    lan_interface: eth0
+    debug: false
+
+shared_storage:
+  server_ip: 192.168.1.102
+  export_path: /srv/shared
+  mount_point: /mnt/shared
+  mount_opts: defaults,_netdev
+
+code_server:
+  bind_addr: 0.0.0.0:8080
+  auth: password
+  password: "<REPLACE_ME_CODE_SERVER_PASSWORD>"
+
+# Optional guest-side Tailscale for normal dev VMs. The lab-profile play skips
+# guest-side Tailscale by default; this is kept for full dev runs.
+guest_tailscale:
+  auth_key: "<REPLACE_ME_TSKEY_AUTH>"
+  args: "--ssh"
+  exit_node: tailscale-redundent.tail20bec0.ts.net
+  exit_node_allow_lan_access: true
+  debug: false
+
+dev_projects:
+  - name: iris-poc
+    repo_url: git@github.com:iris-insight/iris-poc.git
+    version: main
+    image: iris-dev:latest
+    scaffold_docker: true
+    github_owner: iris-insight
+    github_repo: iris-poc
+    auto_build: true
+    auto_start: true
+    smoke_test_command: ./smoke_test.sh
+    cpu:
+      gpu_enabled: false
+      torch_install_mode: cpu
+      index_url: https://download.pytorch.org/whl/cpu
+    gpu:
+      gpu_enabled: true
+      torch_install_mode: cuda
+      index_url: https://download.pytorch.org/whl/cu126

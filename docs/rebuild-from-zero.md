@@ -302,53 +302,66 @@ For the current lab, use the Proxmox bridge-side IP if VM101 should SSH to the h
 
 ## Destructive clean-host rehearsal
 
-Run this only from the external runner/private clone, never from VM101. In the current lab, the external runner is WSL Ubuntu:
+Run this only from the external runner, never from VM101. In the current lab, the external runner is WSL Ubuntu with the public repo clone plus one local private site config:
 
 ```bash
-cd /home/alexander/proxmox-remote-dev-platform-private
+cd /home/alexander/proxmox-remote-dev-platform
+```
+
+Create the local config once from the repo template:
+
+```bash
+mkdir -p ~/.config/proxmox-remote-dev-platform
+cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml
+chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml
+nano ~/.config/proxmox-remote-dev-platform/site.yml
+```
+
+The local config is sensitive and must not be committed:
+
+```text
+/home/alexander/.config/proxmox-remote-dev-platform/site.yml
+```
+
+It contains the values that used to live in the private execution clone:
+
+```text
+Proxmox API token
+Tailscale auth key
+code-server password
+lab IPs and VM/CT IDs
+control VM settings
 ```
 
 Before running a destructive wipe, verify the private inputs that must survive VM101/CT100 deletion:
 
 ```bash
 test -f "$HOME/.ssh/ansible_ed25519" && echo "SSH key present"
-grep -q 'PROXMOX_VE_API_TOKEN' tofu/proxmox.env && echo "Proxmox token env present"
-grep -q 'tskey-auth-' ansible/group_vars/tailscale_lxc.yml && echo "Tailscale auth key present"
-```
-
-The Tailscale auth key belongs in the WSL private execution clone:
-
-```text
-/home/alexander/proxmox-remote-dev-platform-private/ansible/group_vars/tailscale_lxc.yml
-```
-
-That file is copied to VM101 during handoff:
-
-```text
-/home/ubuntu/proxmox-remote-dev-platform-private/ansible/group_vars/tailscale_lxc.yml
+grep -q 'api_token:' ~/.config/proxmox-remote-dev-platform/site.yml && echo "Proxmox token field present"
+grep -q 'tskey-auth-' ~/.config/proxmox-remote-dev-platform/site.yml && echo "Tailscale auth key present"
 ```
 
 Use a reusable/preauthorized Tailscale auth key if you want repeated destructive CT100 rebuilds without creating a new key each time.
 
+The zero script materializes runtime execution files from `site.yml`, then copies that materialized execution tree to VM101 during handoff. These files live at the same paths as the sanitized placeholders, so do not commit after materialization.
+
 ### Current tested full wipe command
 
-This is the current tested command for `proxmox-rulab`:
+This is the current tested command for `proxmox-rulab` using the single config file:
 
 ```bash
-ANSIBLE_KEY_FILE="$HOME/.ssh/ansible_ed25519" \
 bash scripts/rebuild_from_zero_lab.sh \
-  --proxmox-host proxmox-rulab \
-  --post-wipe-proxmox-host proxmox-rulab \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
   --apply \
   --wipe-existing-guests-and-templates \
   --manage-apt-repos \
   --create-template \
   --create-control-vm \
   --handoff-to-control \
-  --with-provider-mirror \
-  --control-proxmox-ssh-host 192.168.1.10 \
-  --control-proxmox-api-endpoint https://192.168.1.10:8006/
+  --with-provider-mirror
 ```
+
+The same values can still be overridden on the CLI when needed, but normally `site.yml` supplies the Proxmox SSH hosts, API endpoints, SSH key path, and control VM settings.
 
 This destroys all Proxmox VMs, all CTs, and local LXC templates on the target host before rebuilding:
 
@@ -365,26 +378,23 @@ Important: `--post-wipe-proxmox-host` must remain reachable after CT100 is destr
 
 ## Full non-GPU zero-to-lab run
 
-On a fresh Proxmox host with root SSH ready and private bundle present, the generic form is:
+On a fresh Proxmox host with root SSH ready and a local `site.yml` present, the generic form is:
 
 ```bash
 bash scripts/bootstrap_control_runner.sh --with-opentofu-provider-mirror
 
-ANSIBLE_KEY_FILE="$HOME/.ssh/ansible_ed25519" \
 bash scripts/rebuild_from_zero_lab.sh \
-  --proxmox-host <pre-wipe-host-or-alias> \
-  --post-wipe-proxmox-host <host-ip-or-alias-that-survives-guest-deletion> \
-  --private-bundle-root <private-bundle-parent-or-private-clone> \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
   --apply \
   --wipe-existing-guests-and-templates \
   --manage-apt-repos \
   --create-template \
   --create-control-vm \
   --handoff-to-control \
-  --with-provider-mirror \
-  --control-proxmox-ssh-host <proxmox-host-ip-reachable-from-vm101> \
-  --control-proxmox-api-endpoint https://<proxmox-host-ip-reachable-from-vm101>:8006/
+  --with-provider-mirror
 ```
+
+Legacy private-bundle mode remains available with `--private-bundle-root`, but the preferred workflow is now public repo + local site config.
 
 For an already configured lab host where VM101/template already exist and you only want to retest VM110/CT100 recreation, use the lab-profile script from VM101 instead of the full wipe:
 

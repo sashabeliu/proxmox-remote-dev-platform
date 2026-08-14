@@ -19,6 +19,8 @@ terraform.tfvars
 !tofu/terraform.tfvars
 *.auto.tfvars
 *.tfvars.json
+config/site.yml
+config/*.local.yml
 secrets.*
 *.secret
 *.key
