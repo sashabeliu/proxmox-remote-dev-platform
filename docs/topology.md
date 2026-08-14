@@ -21,7 +21,7 @@ Proxmox host
 - `storage-vm`: NFS shared storage server
 - `dev-00`, `dev-01`: CPU-based development VMs
 - `gpu-dev-01`: GPU-enabled development VM
-- `mltailscale`: utility LXC related to Tailscale/networking
+- `mltailscale`: Tailscale utility LXC/subnet router; observed route advertisement is `192.168.2.0/24`
 - `ubuntu-22-template`: template base used for cloning guests
 
 ## Network assumptions
@@ -30,6 +30,11 @@ Current observed LAN:
 - Proxmox host bridge on `192.168.1.0/24`
 - Proxmox host observed at `192.168.1.200`
 - guest addressing currently appears statically assigned for core VMs
+- `mltailscale` is expected at `192.168.1.100/24` when restored with production-shaped private values
+
+Current observed Tailscale routing:
+- `mltailscale` advertises `192.168.2.0/24`
+- route approval remains a Tailnet-admin prerequisite unless the ACL policy auto-approves it
 
 ## Shared storage flow
 

@@ -62,8 +62,24 @@ Recommended action:
 Impact:
 - a future rebuild may stall on steps that currently exist only in operator memory
 
+Observed/reduced during rehearsal:
+- template and `ansible-control` command-level recovery paths are now documented and validated on `proxmox-rulab`
+- one lab-only hardware fidelity gap remains: production uses `x86-64-v2-AES`, but the i3-2100 lab host can only run the fallback `x86-64-v2`
+- OpenTofu init/validate/plan was proven on recreated VM 101; the full successful plan is unsafe to apply as-is on the lab host because it includes GPU VM `121` with 16 cores and `gpu-4070` PCI mapping, while `proxmox-rulab` has 4 CPUs and no PCI mappings
+- targeted `dev-00` apply exposed and resolved several lab/private-config gaps: production `dev-00` requests 5 vCPUs, above the lab max of 4; the private `ssh_public_key` initially did not match the restored key; and production IP `192.168.1.110` collided/reached a different host during lab SSH verification
+- clean targeted recreate of `dev-00` was proven with private-only lab overrides: VM `110`, 4 cores, 8192 MB RAM, 80G disk, `192.168.1.212/24`; OpenTofu apply completed, SSH from VM 101 succeeded, QEMU guest agent was installed/enabled and verified, inventory rendering produced the correct `dev-00` address, Ansible ping returned `pong`, Docker became active, GitHub deploy-key registration and `iris-poc` clone succeeded with the recovered original GitHub token, project container build/start and smoke tests succeeded, code-server was enabled, and NFS client storage mounted `/mnt/shared`
+- true end-to-end guest Ansible convergence from the beginning is intentionally deferred at the Tailscale/repository boundary for now: the original control VM's Tailscale auth key was recovered/copied but is expired or deleted (`invalid key: API key does not exist`), and guest repository setup requires valid GitHub/deploy-key prerequisites; these are documented in `docs/guest-tailscale-and-repo-prerequisites.md`
+- clean targeted recreate of the Tailscale LXC was proven on `proxmox-rulab`: CT `100 tailscale-rulab` was removed, recreated by OpenTofu, post-configured by the Proxmox-host Ansible role, configured inside the CT by the `tailscale_lxc` role, and verified with TUN, forwarding, persistent iptables, and live NETMAP rules
+- because clean Tailscale LXC recreate creates a new Tailnet node identity, route approval for `192.168.2.0/24` remains external unless Tailnet ACL `autoApprovers.routes` covers the rebuilt node
+- a lab-safe rebuild profile now exists in `scripts/rebuild_lab_profile.sh` and `docs/lab-profile-rebuild.md`; it targets `dev-00` plus `tailscale-rulab` and intentionally excludes `gpu-dev-01`
+- combined clean non-GPU lab rebuild was performed: VM `110 dev-00` and CT `100 tailscale-rulab` were destroyed/recreated, host/LXC/dev Ansible convergence succeeded, QEMU guest agent was installed/started, and targeted OpenTofu post-Ansible plan returned no changes
+
 Recommended action:
-- convert recovery docs into exact commands and validation points
+- approve or auto-approve the rebuilt Tailscale LXC route `192.168.2.0/24`
+- use `scripts/rebuild_lab_profile.sh --apply --destroy-existing` for repeat clean non-GPU lab profile rebuilds; watch specifically for QEMU guest-agent availability during first boot and rely on the script's post-Ansible drift check
+- keep guest Tailscale join and workload repository setup as explicit prerequisites unless running the lab script with `--full-dev`
+- keep full GPU/prod-shaped apply deferred until the lab has matching capacity/mappings or a separate lab-safe GPU scope is defined
+- continue converting recovery docs into exact commands and validation points
 - record every manual step discovered during future rebuild rehearsals
 
 ### 7. Inventory generation mixes generated and static host knowledge

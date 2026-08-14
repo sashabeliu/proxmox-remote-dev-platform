@@ -15,6 +15,7 @@ You need all of these before starting:
 - backup of `/srv/shared`
 - SSH access from your workstation
 - access to GitHub repos used by workloads
+- fresh Tailscale auth key or OAuth client credentials that can create one
 - if needed: template VM backup/export
 
 Stop if any of these are missing.
@@ -146,6 +147,30 @@ Expected result:
 
 Stop if OpenTofu cannot reach Proxmox or cloning fails.
 
+### Lab-safe non-GPU profile
+
+For `proxmox-rulab`, use the lab profile when you want to prove the rebuild without `gpu-dev-01`:
+
+```bash
+cd /home/ubuntu/proxmox-remote-dev-platform-private
+bash scripts/rebuild_lab_profile.sh
+```
+
+The default mode plans/checks only. To prove a clean rebuild of the selected lab resources:
+
+```bash
+bash scripts/rebuild_lab_profile.sh --apply --destroy-existing
+```
+
+This profile targets only:
+- `proxmox_virtual_environment_vm.dev["dev-00"]`
+- `proxmox_virtual_environment_container.tailscale_lxc["tailscale-rulab"]`
+
+It intentionally excludes `gpu-dev-01`.
+
+Reference:
+- `docs/lab-profile-rebuild.md`
+
 ## 9. Render guest inventory
 From the private clone:
 ```bash
@@ -158,7 +183,33 @@ Expected result:
 - dev/gpu guests appear
 - static `storage-vm` entry remains present
 
-## 10. Configure guests with Ansible
+## 10. Optional: deploy the Tailscale utility LXC
+Do this when the platform needs the `mltailscale` subnet-router/utility LXC restored.
+Skip guest VM Tailnet joins and workload repo cloning if those credentials are not ready yet; document them as prerequisites rather than blocking LXC deployment.
+
+Prerequisites:
+- Proxmox LXC template is present, currently expected as Debian 12 on `local` storage
+- `tailscale_lxcs` is configured in the private `tofu/terraform.tfvars`
+- `ansible/group_vars/tailscale_lxc.yml` has a fresh LXC auth key
+- the Tailscale OAuth client/auth-key policy permits the requested route/tag behavior
+- advertised subnet routes can be approved in the Tailscale admin console unless auto-approved by policy
+
+From the private clone:
+```bash
+cd /home/ubuntu/proxmox-remote-dev-platform-private/tofu
+tofu plan -target='proxmox_virtual_environment_container.tailscale_lxc["mltailscale"]'
+tofu apply -target='proxmox_virtual_environment_container.tailscale_lxc["mltailscale"]'
+python ../scripts/render_inventory.py
+
+cd ../ansible
+ANSIBLE_HOST_KEY_CHECKING=False ansible -i inventory/hosts.ini tailscale_lxc -m ping
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini site.yml --limit tailscale_lxc
+```
+
+Reference:
+- `docs/tailscale-recovery.md`
+
+## 11. Configure guests with Ansible
 From the private clone:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/ansible
@@ -176,7 +227,9 @@ This configures, depending on host group:
 - project bring-up
 - NVIDIA tooling on GPU guests
 
-## 11. Restore shared storage state
+If you intentionally skip Tailscale guest join or workload repository setup during a rehearsal, record that explicitly. Those require fresh Tailnet credentials and GitHub/deploy-key prerequisites before the run can count as complete guest recovery.
+
+## 12. Restore shared storage state
 Recover `storage-vm` and `/srv/shared`.
 
 Do this:
@@ -188,17 +241,18 @@ Do this:
 Reference:
 - `docs/storage-vm-recovery.md`
 
-## 12. Validate Tailscale
-For repo-managed guests, verify:
+## 13. Validate Tailscale
+For repo-managed guests and the Tailscale LXC, verify:
 - `tailscaled` is running
 - hosts joined the Tailnet
 - SSH-over-Tailscale works if still intended
 - exit node settings applied if still intended
+- expected subnet routes are advertised and approved
 
 Reference:
 - `docs/tailscale-recovery.md`
 
-## 13. Final acceptance checks
+## 14. Final acceptance checks
 Recovery is acceptable only if all are true:
 - Proxmox UI works
 - root SSH to Proxmox works
@@ -252,6 +306,7 @@ This page is useful, but the platform is not yet fully rebuild-hard:
 - exact template build steps are still not pinned command-by-command
 - exact package install commands for `ansible-control` are still not pinned
 - `storage-vm` is still manual/static, not OpenTofu-managed
-- Tailscale recovery is only codified for repo-managed guests, not every observed node
+- Tailscale LXC recovery is codified, but fresh auth-key/OAuth generation and route approval remain external prerequisites
+- guest workload repository setup still requires valid GitHub token/deploy-key rights and upstream repo access
 - scheduled Proxmox backup jobs were not observed during audit
 - OpenTofu state handling still needs hardening
