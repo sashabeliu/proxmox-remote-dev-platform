@@ -1,0 +1,88 @@
+- name: Ensure Proxmox host has /dev/net/tun
+  ansible.builtin.shell: |
+    set -e
+    if [ ! -e /dev/net/tun ]; then
+      modprobe tun
+    fi
+    test -c /dev/net/tun
+  changed_when: false
+  check_mode: false
+
+- name: Ensure required LXC templates are available on Proxmox storage
+  ansible.builtin.command: >-
+    pveam download {{ item.value.template_storage | default('local') }} {{ item.value.template_file }}
+  args:
+    creates: "/var/lib/vz/template/cache/{{ item.value.template_file }}"
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  when: item.value.template_file is defined
+
+- name: Check whether Tailscale LXC containers exist
+  ansible.builtin.command: "pct status {{ item.value.vm_id }}"
+  register: tailscale_lxc_host_pct_status
+  changed_when: false
+  check_mode: false
+  failed_when:
+    - tailscale_lxc_host_require_existing | default(false)
+    - tailscale_lxc_host_pct_status.rc != 0
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} CT {{ item.value.vm_id }}"
+
+- name: Build existing Tailscale LXC container map
+  ansible.builtin.set_fact:
+    tailscale_lxc_host_existing: >-
+      {{ tailscale_lxc_host_existing | default({}) | combine({item.item.key: (item.rc == 0)}) }}
+  loop: "{{ tailscale_lxc_host_pct_status.results }}"
+  loop_control:
+    label: "{{ item.item.key }}"
+
+- name: Ensure raw TUN LXC config lines exist for Tailscale containers
+  ansible.builtin.lineinfile:
+    path: "/etc/pve/lxc/{{ item.0.value.vm_id }}.conf"
+    regexp: "{{ item.1.regexp }}"
+    line: "{{ item.1.line }}"
+    create: false
+    backup: true
+  loop: "{{ tailscale_lxc_host_containers | dict2items | subelements('value.raw_config_lines') }}"
+  loop_control:
+    label: "{{ item.0.key }}: {{ item.1.line }}"
+  when: tailscale_lxc_host_existing[item.0.key] | default(false)
+  register: tailscale_lxc_host_raw_config
+
+- name: Stop Tailscale LXC containers when raw config changed
+  ansible.builtin.command: "pct stop {{ item.value.vm_id }} --skiplock 1"
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} CT {{ item.value.vm_id }}"
+  when:
+    - tailscale_lxc_host_existing[item.key] | default(false)
+    - item.value.restart_on_raw_config_change | default(true)
+    - tailscale_lxc_host_raw_config is changed
+
+- name: Start Tailscale LXC containers when raw config changed
+  ansible.builtin.command: "pct start {{ item.value.vm_id }}"
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} CT {{ item.value.vm_id }}"
+  when:
+    - tailscale_lxc_host_existing[item.key] | default(false)
+    - item.value.restart_on_raw_config_change | default(true)
+    - tailscale_lxc_host_raw_config is changed
+
+- name: Verify /dev/net/tun is visible inside existing Tailscale LXC containers
+  ansible.builtin.command: "pct exec {{ item.value.vm_id }} -- ls -l /dev/net/tun"
+  changed_when: false
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} CT {{ item.value.vm_id }}"
+  when: tailscale_lxc_host_existing[item.key] | default(false)
+  register: tailscale_lxc_host_tun_verify
+  check_mode: false
+
+- name: Show skipped Tailscale LXC host config for containers not yet created
+  ansible.builtin.debug:
+    msg: "Skipping raw LXC config for {{ item.key }} CT {{ item.value.vm_id }} because the container does not exist yet. Run OpenTofu apply first, then rerun this play."
+  loop: "{{ tailscale_lxc_host_containers | dict2items }}"
+  loop_control:
+    label: "{{ item.key }} CT {{ item.value.vm_id }}"
+  when: not (tailscale_lxc_host_existing[item.key] | default(false))

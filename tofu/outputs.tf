@@ -22,6 +22,13 @@ output "ansible_hosts" {
 output "ansible_hosts" {
   value = merge(
     {
+      for name, vm in proxmox_virtual_environment_vm.control :
+      name => {
+        ip    = split("/", var.control_vms[name].ip_cidr)[0]
+        group = "control"
+      }
+    },
+    {
       for name, vm in proxmox_virtual_environment_vm.dev :
       name => {
         ip    = split("/", var.dev_vms[name].ip_cidr)[0]
@@ -36,4 +43,25 @@ output "ansible_hosts" {
       }
     }
   )
+}
+
+output "control_vm_hosts" {
+  value = {
+    for name, vm in proxmox_virtual_environment_vm.control :
+    name => {
+      ip    = split("/", var.control_vms[name].ip_cidr)[0]
+      group = "control"
+      vm_id = vm.vm_id
+    }
+  }
+}
+
+output "tailscale_lxc_hosts" {
+  value = {
+    for name, lxc in proxmox_virtual_environment_container.tailscale_lxc :
+    name => {
+      ip    = split("/", var.tailscale_lxcs[name].ip_cidr)[0]
+      group = "tailscale_lxc"
+    }
+  }
 }

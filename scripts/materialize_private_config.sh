@@ -73,6 +73,25 @@ canon_dir() {
   )
 }
 
+normalize_lf() {
+  local path="$1"
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$path" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))
+PY
+  elif command -v python >/dev/null 2>&1; then
+    python - "$path" <<'PY'
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+p.write_bytes(p.read_bytes().replace(b"\r\n", b"\n"))
+PY
+  fi
+}
+
 REPO_ROOT="$(canon_dir "$REPO_ROOT")"
 BUNDLE_ROOT="$(canon_dir "$BUNDLE_ROOT")"
 
@@ -106,6 +125,11 @@ required_paths=(
   "ansible/group_vars/gpu_dev.yml"
 )
 
+optional_paths=(
+  "ansible/group_vars/proxmox_hosts.yml"
+  "ansible/group_vars/tailscale_lxc.yml"
+)
+
 for rel in "${required_paths[@]}"; do
   src="$ACTUAL_BUNDLE_ROOT/$rel"
   if [[ ! -f "$src" ]]; then
@@ -130,7 +154,24 @@ for rel in "${required_paths[@]}"; do
   fi
   mkdir -p "$(dirname "$dst")"
   cp "$src" "$dst"
+  normalize_lf "$dst"
   echo "Copied: $rel"
+done
+
+for rel in "${optional_paths[@]}"; do
+  src="$ACTUAL_BUNDLE_ROOT/$rel"
+  dst="$REPO_ROOT/$rel"
+  if [[ ! -f "$src" ]]; then
+    continue
+  fi
+  if [[ "$DRY_RUN" -eq 1 ]]; then
+    echo "DRY-RUN optional copy: $src -> $dst"
+    continue
+  fi
+  mkdir -p "$(dirname "$dst")"
+  cp "$src" "$dst"
+  normalize_lf "$dst"
+  echo "Copied optional: $rel"
 done
 
 if [[ "$DRY_RUN" -eq 1 ]]; then

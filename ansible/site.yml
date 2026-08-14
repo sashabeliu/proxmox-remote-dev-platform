@@ -31,3 +31,8 @@
   roles:
     - common
     - storage_server
+
+- hosts: tailscale_lxc
+  become: yes
+  roles:
+    - tailscale_lxc

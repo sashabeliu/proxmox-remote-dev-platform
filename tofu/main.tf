@@ -9,6 +9,19 @@ resource "proxmox_virtual_environment_vm" "dev" {
   node_name = var.target_node
   vm_id     = each.value.vm_id
   name      = each.key
+  bios      = "ovmf"
+  machine   = "q35"
+
+  scsi_hardware   = "virtio-scsi-single"
+  keyboard_layout = "en-us"
+
+  lifecycle {
+    ignore_changes = [
+      clone,
+      agent,
+      keyboard_layout,
+    ]
+  }
 
   clone {
     vm_id = var.template_vm_id
@@ -24,8 +37,10 @@ resource "proxmox_virtual_environment_vm" "dev" {
     dedicated = each.value.memory_mb
   }
 
-  agent {
-    enabled = true
+  efi_disk {
+    datastore_id      = "local-lvm"
+    type              = "4m"
+    pre_enrolled_keys = true
   }
 
   initialization {
@@ -59,7 +74,7 @@ resource "proxmox_virtual_environment_vm" "dev" {
     type = "l26"
   }
 
-  boot_order = ["scsi0"]
+  boot_order = ["ide2", "net0", "scsi0"]
 }
 
 resource "proxmox_virtual_environment_vm" "gpu_dev" {
@@ -68,6 +83,19 @@ resource "proxmox_virtual_environment_vm" "gpu_dev" {
   node_name = var.target_node
   vm_id     = each.value.vm_id
   name      = each.key
+  bios      = "ovmf"
+  machine   = "q35"
+
+  scsi_hardware   = "virtio-scsi-single"
+  keyboard_layout = "en-us"
+
+  lifecycle {
+    ignore_changes = [
+      clone,
+      agent,
+      keyboard_layout,
+    ]
+  }
 
   clone {
     vm_id = var.template_vm_id
@@ -83,8 +111,10 @@ resource "proxmox_virtual_environment_vm" "gpu_dev" {
     dedicated = each.value.memory_mb
   }
 
-  agent {
-    enabled = true
+  efi_disk {
+    datastore_id      = "local-lvm"
+    type              = "4m"
+    pre_enrolled_keys = true
   }
 
   initialization {
@@ -118,7 +148,7 @@ resource "proxmox_virtual_environment_vm" "gpu_dev" {
     type = "l26"
   }
 
-  boot_order = ["scsi0"]
+  boot_order = ["ide2", "net0", "scsi0"]
 
   hostpci {
     device  = "hostpci0"

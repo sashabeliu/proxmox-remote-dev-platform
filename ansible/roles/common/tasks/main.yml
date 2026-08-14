@@ -6,3 +6,16 @@
   apt:
     name: "{{ common_packages }}"
     state: present
+
+- name: Ensure QEMU guest agent package is installed on VM guests
+  apt:
+    name: qemu-guest-agent
+    state: present
+  when: ansible_virtualization_type | default('') != 'lxc'
+
+- name: Ensure QEMU guest agent is running on VM guests
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+    enabled: yes
+  when: ansible_virtualization_type | default('') != 'lxc'

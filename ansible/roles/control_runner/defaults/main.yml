@@ -1,0 +1,22 @@
+---
+control_runner_packages:
+  - qemu-guest-agent
+  - git
+  - python3
+  - python3-pip
+  - python3-venv
+  - ansible
+  - curl
+  - ca-certificates
+  - unzip
+  - jq
+  - gnupg
+  - lsb-release
+  - openssh-client
+
+control_runner_opentofu_version: "1.12.5"
+control_runner_install_provider_mirror: true
+control_runner_proxmox_provider_version: "0.100.0"
+control_runner_repo_private_path: /home/ubuntu/proxmox-remote-dev-platform-private
+control_runner_compat_infra_dir: /home/ubuntu/infra
+control_runner_compat_ansible_path: /home/ubuntu/infra-ansible

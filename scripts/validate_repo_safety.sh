@@ -48,6 +48,7 @@ failures=0
 say() { printf '%s\n' "$*"; }
 pass() { printf 'PASS: %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; failures=$((failures + 1)); }
+warn() { printf 'WARN: %s\n' "$*" >&2; }
 
 require_exists() {
   local path="$1"
@@ -79,7 +80,14 @@ require_no_placeholder() {
 
 check_literal_secret_patterns() {
   local matches=""
-  matches="$(git grep -nI -E 'BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|tskey-[A-Za-z0-9-]{20,}' -- . || true)"
+  if [[ "$MODE" == "deploy" ]]; then
+    # Deploy mode runs in a private execution clone where the tracked placeholder
+    # interfaces are intentionally materialized with real values. Keep scanning
+    # the rest of the tree, but exclude the expected private config files.
+    matches="$(git grep -nI -E 'BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|tskey-[A-Za-z0-9-]{20,}' -- . ':!tofu/proxmox.env' ':!tofu/terraform.tfvars' ':!ansible/group_vars/*.yml' || true)"
+  else
+    matches="$(git grep -nI -E 'BEGIN [A-Z ]*PRIVATE KEY|ghp_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|tskey-[A-Za-z0-9-]{20,}' -- . || true)"
+  fi
   if [[ -n "$matches" ]]; then
     fail "high-confidence secret-like material detected in tracked files"
     printf '%s\n' "$matches" >&2
@@ -92,8 +100,13 @@ check_state_artifacts() {
   local state_hits=""
   state_hits="$(find . -path './.git' -prune -o -path './.terraform' -prune -o \( -name '*.tfstate' -o -name '*.tfstate.*' -o -path '*/.terraform/*' \) -print)"
   if [[ -n "$state_hits" ]]; then
-    fail "forbidden Terraform/OpenTofu state artifacts present in repo working tree"
-    printf '%s\n' "$state_hits" >&2
+    if [[ "$MODE" == "deploy" ]]; then
+      warn "Terraform/OpenTofu state artifacts are present; allowed only in private execution clones"
+      printf '%s\n' "$state_hits" >&2
+    else
+      fail "forbidden Terraform/OpenTofu state artifacts present in repo working tree"
+      printf '%s\n' "$state_hits" >&2
+    fi
   else
     pass "no Terraform/OpenTofu state artifacts present in repo working tree"
   fi
@@ -147,6 +160,7 @@ required_files=(
   "ansible/group_vars/all.yml"
   "ansible/group_vars/dev.yml"
   "ansible/group_vars/gpu_dev.yml"
+  "ansible/group_vars/tailscale_lxc.yml"
 )
 for file in "${required_files[@]}"; do
   require_exists "$file"
@@ -157,12 +171,16 @@ if [[ "$MODE" == "repo" ]]; then
   require_exact_line "ansible/group_vars/all.yml" 'tailscale_auth_key: "<REPLACE_ME>"'
   require_exact_line "ansible/group_vars/dev.yml" 'code_server_password: "<REPLACE_ME>"'
   require_exact_line "ansible/group_vars/gpu_dev.yml" 'code_server_password: "<REPLACE_ME>"'
+  require_exact_line "ansible/group_vars/tailscale_lxc.yml" 'tailscale_lxc_auth_key: "<REPLACE_ME>"'
 else
   require_no_placeholder "tofu/proxmox.env"
   require_no_placeholder "tofu/terraform.tfvars"
   require_no_placeholder "ansible/group_vars/all.yml"
   require_no_placeholder "ansible/group_vars/dev.yml"
   require_no_placeholder "ansible/group_vars/gpu_dev.yml"
+  if [[ -n "$(git grep -n 'tailscale_lxc' -- tofu ansible scripts 2>/dev/null || true)" ]]; then
+    require_no_placeholder "ansible/group_vars/tailscale_lxc.yml"
+  fi
 fi
 
 check_literal_secret_patterns

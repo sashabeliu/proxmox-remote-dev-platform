@@ -1,0 +1,4 @@
+- hosts: proxmox_hosts
+  become: no
+  roles:
+    - proxmox_host_base

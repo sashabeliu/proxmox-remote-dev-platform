@@ -1,0 +1,113 @@
+---
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: yes
+    cache_valid_time: 3600
+  become: yes
+
+- name: Install control runner packages
+  ansible.builtin.apt:
+    name: "{{ control_runner_packages }}"
+    state: present
+  become: yes
+
+- name: Enable QEMU guest agent
+  ansible.builtin.service:
+    name: qemu-guest-agent
+    state: started
+    enabled: yes
+  become: yes
+
+- name: Check OpenTofu installation
+  ansible.builtin.command: tofu version
+  register: control_runner_tofu_version_check
+  changed_when: false
+  failed_when: false
+
+- name: Install OpenTofu
+  ansible.builtin.shell: |
+    set -euo pipefail
+    VERSION='{{ control_runner_opentofu_version }}'
+    TMP="$(mktemp -d)"
+    trap 'rm -rf "$TMP"' EXIT
+    curl -fL "https://github.com/opentofu/opentofu/releases/download/v${VERSION}/tofu_${VERSION}_linux_amd64.zip" -o "$TMP/tofu.zip"
+    unzip -q "$TMP/tofu.zip" -d "$TMP"
+    install -m 0755 "$TMP/tofu" /usr/local/bin/tofu
+  args:
+    executable: /bin/bash
+  become: yes
+  when: control_runner_tofu_version_check.rc != 0
+
+- name: Install OpenTofu provider mirror for bpg/proxmox
+  ansible.builtin.shell: |
+    set -euo pipefail
+    VERSION='{{ control_runner_proxmox_provider_version }}'
+    OS_ARCH='linux_amd64'
+    MIRROR_DIR="$HOME/.terraform.d/plugins/registry.opentofu.org/bpg/proxmox/${VERSION}/${OS_ARCH}"
+    mkdir -p "$MIRROR_DIR"
+    if [ ! -x "$MIRROR_DIR/terraform-provider-proxmox_v${VERSION}" ]; then
+      TMP="$(mktemp -d)"
+      trap 'rm -rf "$TMP"' EXIT
+      curl -fL "https://github.com/bpg/terraform-provider-proxmox/releases/download/v${VERSION}/terraform-provider-proxmox_${VERSION}_${OS_ARCH}.zip" -o "$TMP/provider.zip"
+      unzip -q "$TMP/provider.zip" -d "$TMP/provider"
+      install -m 0755 "$TMP/provider/terraform-provider-proxmox_v${VERSION}" "$MIRROR_DIR/terraform-provider-proxmox_v${VERSION}"
+    fi
+    cat >"$HOME/.terraformrc" <<EOF
+    provider_installation {
+      filesystem_mirror {
+        path    = "$HOME/.terraform.d/plugins"
+        include = ["registry.opentofu.org/bpg/proxmox"]
+      }
+      direct {
+        exclude = ["registry.opentofu.org/bpg/proxmox"]
+      }
+    }
+    EOF
+    cp "$HOME/.terraformrc" "$HOME/.tofurc"
+  args:
+    executable: /bin/bash
+  when: control_runner_install_provider_mirror | bool
+
+- name: Create compatibility infra directory
+  ansible.builtin.file:
+    path: "{{ control_runner_compat_infra_dir }}"
+    state: directory
+    owner: ubuntu
+    group: ubuntu
+    mode: "0755"
+  become: yes
+
+- name: Create compatibility symlink for tofu
+  ansible.builtin.file:
+    src: "{{ control_runner_repo_private_path }}/tofu"
+    dest: "{{ control_runner_compat_infra_dir }}/tofu"
+    state: link
+    force: yes
+  when: control_runner_repo_private_path is defined
+
+- name: Create compatibility symlink for scripts
+  ansible.builtin.file:
+    src: "{{ control_runner_repo_private_path }}/scripts"
+    dest: "{{ control_runner_compat_infra_dir }}/scripts"
+    state: link
+    force: yes
+  when: control_runner_repo_private_path is defined
+
+- name: Create compatibility symlink for ansible
+  ansible.builtin.file:
+    src: "{{ control_runner_repo_private_path }}/ansible"
+    dest: "{{ control_runner_compat_ansible_path }}"
+    state: link
+    force: yes
+  when: control_runner_repo_private_path is defined
+
+- name: Show control runner versions
+  ansible.builtin.shell: |
+    set -e
+    git --version
+    python3 --version
+    ansible-playbook --version | sed -n '1,3p'
+    tofu version
+  args:
+    executable: /bin/bash
+  changed_when: false

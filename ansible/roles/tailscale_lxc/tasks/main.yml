@@ -1,0 +1,186 @@
+- name: Preseed iptables-persistent prompts for noninteractive install
+  ansible.builtin.shell: |
+    set -e
+    echo iptables-persistent iptables-persistent/autosave_v4 boolean false | debconf-set-selections
+    echo iptables-persistent iptables-persistent/autosave_v6 boolean false | debconf-set-selections
+  changed_when: false
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Ensure base packages needed for Tailscale are installed
+  ansible.builtin.apt:
+    name:
+      - ca-certificates
+      - curl
+      - gnupg
+      - iproute2
+      - iptables
+      - python3
+    state: present
+    update_cache: true
+
+- name: Ensure persistent firewall packages are installed when remap is enabled
+  ansible.builtin.apt:
+    name:
+      - iptables-persistent
+      - netfilter-persistent
+    state: present
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Install Tailscale in LXC
+  ansible.builtin.shell: |
+    set -e
+    install -d -m 0755 /usr/share/keyrings
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
+      -o /usr/share/keyrings/tailscale-archive-keyring.gpg
+    curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
+      -o /etc/apt/sources.list.d/tailscale.list
+    apt-get update
+    apt-get install -y tailscale
+  args:
+    creates: /usr/bin/tailscale
+
+- name: Enable and start tailscaled in LXC
+  ansible.builtin.systemd:
+    name: tailscaled
+    state: started
+    enabled: true
+
+- name: Configure forwarding sysctl for Tailscale subnet routing
+  ansible.builtin.copy:
+    dest: /etc/sysctl.d/99-tailscale-lxc.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      net.ipv4.ip_forward=1
+      net.ipv6.conf.all.forwarding=1
+
+- name: Apply forwarding sysctl for Tailscale subnet routing
+  ansible.builtin.command: "{{ item }}"
+  loop:
+    - sysctl -w net.ipv4.ip_forward=1
+    - sysctl -w net.ipv6.conf.all.forwarding=1
+  changed_when: false
+
+- name: Ensure iptables rules directory exists when remap is enabled
+  ansible.builtin.file:
+    path: /etc/iptables
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Persist IPv4 NETMAP remap rules for Tailscale LXC
+  ansible.builtin.copy:
+    dest: /etc/iptables/rules.v4
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      *filter
+      :INPUT ACCEPT [0:0]
+      :FORWARD ACCEPT [0:0]
+      :OUTPUT ACCEPT [0:0]
+      COMMIT
+
+      *nat
+      :PREROUTING ACCEPT [0:0]
+      :INPUT ACCEPT [0:0]
+      :OUTPUT ACCEPT [0:0]
+      :POSTROUTING ACCEPT [0:0]
+      -A PREROUTING -d {{ tailscale_lxc_tailnet_subnet }} -j NETMAP --to {{ tailscale_lxc_real_subnet }}
+      -A POSTROUTING -o {{ tailscale_lxc_lan_interface }} -j MASQUERADE
+      -A POSTROUTING -d {{ tailscale_lxc_real_subnet }} -j NETMAP --to {{ tailscale_lxc_tailnet_subnet }}
+      COMMIT
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Persist empty IPv6 rules file for netfilter-persistent
+  ansible.builtin.copy:
+    dest: /etc/iptables/rules.v6
+    owner: root
+    group: root
+    mode: "0600"
+    content: |
+      *filter
+      :INPUT ACCEPT [0:0]
+      :FORWARD ACCEPT [0:0]
+      :OUTPUT ACCEPT [0:0]
+      COMMIT
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Enable netfilter-persistent for boot-time remap rules
+  ansible.builtin.systemd:
+    name: netfilter-persistent
+    enabled: true
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Apply live IPv4 NETMAP remap rules without flushing Tailscale chains
+  ansible.builtin.shell: |
+    set -e
+    changed=0
+    if ! iptables -t nat -C PREROUTING -d {{ tailscale_lxc_tailnet_subnet }} -j NETMAP --to {{ tailscale_lxc_real_subnet }} 2>/dev/null; then
+      iptables -t nat -A PREROUTING -d {{ tailscale_lxc_tailnet_subnet }} -j NETMAP --to {{ tailscale_lxc_real_subnet }}
+      changed=1
+    fi
+    if ! iptables -t nat -C POSTROUTING -o {{ tailscale_lxc_lan_interface }} -j MASQUERADE 2>/dev/null; then
+      iptables -t nat -A POSTROUTING -o {{ tailscale_lxc_lan_interface }} -j MASQUERADE
+      changed=1
+    fi
+    if ! iptables -t nat -C POSTROUTING -d {{ tailscale_lxc_real_subnet }} -j NETMAP --to {{ tailscale_lxc_tailnet_subnet }} 2>/dev/null; then
+      iptables -t nat -A POSTROUTING -d {{ tailscale_lxc_real_subnet }} -j NETMAP --to {{ tailscale_lxc_tailnet_subnet }}
+      changed=1
+    fi
+    echo "changed=${changed}"
+  register: tailscale_lxc_remap_apply
+  changed_when: "'changed=1' in tailscale_lxc_remap_apply.stdout"
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Build Tailscale LXC route arguments
+  ansible.builtin.set_fact:
+    tailscale_lxc_route_args: >-
+      {% if tailscale_lxc_advertise_routes | default([]) | length > 0 %}
+      --advertise-routes={{ tailscale_lxc_advertise_routes | join(',') }}
+      {% endif %}
+      {% if tailscale_lxc_advertise_exit_node | default(false) %}
+      --advertise-exit-node
+      {% endif %}
+      {% if tailscale_lxc_accept_routes | default(false) %}
+      --accept-routes
+      {% endif %}
+
+- name: Join Tailnet and configure Tailscale LXC routes
+  ansible.builtin.command: >-
+    tailscale up
+    --reset
+    --authkey={{ tailscale_lxc_auth_key }}
+    --hostname={{ inventory_hostname }}
+    {{ tailscale_lxc_args | default('') }}
+    {{ tailscale_lxc_route_args | default('') }}
+  register: tailscale_lxc_up
+  changed_when: false
+  no_log: true
+
+- name: Read final Tailscale LXC status
+  ansible.builtin.command: tailscale status --json
+  register: tailscale_lxc_status
+  changed_when: false
+
+- name: Read live IPv4 NAT remap rules
+  ansible.builtin.shell: |
+    iptables-save -t nat | grep -E '192\.168\.1|192\.168\.2|NETMAP|MASQUERADE' || true
+  register: tailscale_lxc_nat_status
+  changed_when: false
+  when: tailscale_lxc_remap_enabled | default(false)
+
+- name: Show final Tailscale LXC status
+  ansible.builtin.debug:
+    var: tailscale_lxc_status.stdout
+  when: tailscale_lxc_debug | default(false)
+
+- name: Show final Tailscale LXC NAT remap status
+  ansible.builtin.debug:
+    var: tailscale_lxc_nat_status.stdout_lines
+  when:
+    - tailscale_lxc_debug | default(false)
+    - tailscale_lxc_remap_enabled | default(false)

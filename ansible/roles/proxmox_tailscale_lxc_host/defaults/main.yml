@@ -1,0 +1,19 @@
+tailscale_lxc_host_require_existing: false
+
+tailscale_lxc_host_containers:
+  mltailscale:
+    vm_id: 100
+    template_storage: local
+    template_file: debian-12-standard_12.12-1_amd64.tar.zst
+    restart_on_raw_config_change: true
+    raw_config_lines:
+      - regexp: '^features:.*$'
+        line: 'features: keyctl=1,nesting=1'
+      - regexp: '^lxc\.mount\.entry:\s+/dev/net/tun\b.*$'
+        line: 'lxc.mount.entry: /dev/net/tun dev/net/tun none bind,create=file'
+      - regexp: '^lxc\.apparmor\.profile:.*$'
+        line: 'lxc.apparmor.profile: unconfined'
+      - regexp: '^lxc\.cgroup2\.devices\.allow:.*$'
+        line: 'lxc.cgroup2.devices.allow: a'
+      - regexp: '^lxc\.cap\.drop:.*$'
+        line: 'lxc.cap.drop: '

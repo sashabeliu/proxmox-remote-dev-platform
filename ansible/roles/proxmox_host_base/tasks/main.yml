@@ -1,0 +1,268 @@
+---
+- name: Verify this host looks like Proxmox VE
+  ansible.builtin.shell: |
+    set -e
+    command -v pveversion
+    command -v pvesh
+    command -v qm
+    command -v pct
+    command -v pveam
+    command -v pvesm
+    command -v pveum
+    pveversion
+  register: proxmox_host_base_pveversion
+  changed_when: false
+  check_mode: false
+
+- name: Show Proxmox version
+  ansible.builtin.debug:
+    var: proxmox_host_base_pveversion.stdout_lines
+
+- name: Disable Proxmox enterprise apt repo when requested
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/pve-enterprise.list
+    regexp: '^deb\s+'
+    replace: '# deb '
+  when:
+    - proxmox_host_manage_apt_repos | bool
+    - proxmox_host_disable_enterprise_repos | bool
+
+- name: Disable Ceph enterprise apt repo when requested
+  ansible.builtin.replace:
+    path: /etc/apt/sources.list.d/ceph.list
+    regexp: '^deb\s+'
+    replace: '# deb '
+  when:
+    - proxmox_host_manage_apt_repos | bool
+    - proxmox_host_disable_enterprise_repos | bool
+  failed_when: false
+
+- name: Enable Proxmox no-subscription apt repo when requested
+  ansible.builtin.copy:
+    dest: /etc/apt/sources.list.d/pve-no-subscription.list
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      deb http://download.proxmox.com/debian/pve {{ ansible_distribution_release }} pve-no-subscription
+  when:
+    - proxmox_host_manage_apt_repos | bool
+    - proxmox_host_enable_no_subscription_repo | bool
+
+- name: Update apt cache on Proxmox host
+  ansible.builtin.apt:
+    update_cache: yes
+  when: proxmox_host_manage_apt_repos | bool
+
+- name: Install Proxmox host base packages
+  ansible.builtin.apt:
+    name: "{{ proxmox_host_packages }}"
+    state: present
+    update_cache: "{{ proxmox_host_manage_apt_repos | bool }}"
+
+- name: Ensure root SSH authorized keys are present
+  ansible.posix.authorized_key:
+    user: root
+    key: "{{ item }}"
+    state: present
+  loop: "{{ proxmox_host_root_authorized_keys }}"
+  when: proxmox_host_root_authorized_keys | length > 0
+
+- name: Write local access public key file for template/cloud-init use
+  ansible.builtin.copy:
+    dest: "{{ proxmox_host_local_access_pubkey_path }}"
+    owner: root
+    group: root
+    mode: "0644"
+    content: "{{ proxmox_host_local_access_pubkey | trim }}\n"
+  when: proxmox_host_local_access_pubkey | trim | length > 0
+
+- name: Verify required Linux bridge exists
+  ansible.builtin.command: "ip link show {{ proxmox_host_required_bridge }}"
+  changed_when: false
+  check_mode: false
+
+- name: Verify required Proxmox storage IDs exist
+  ansible.builtin.command: "pvesm status --storage {{ item }}"
+  loop: "{{ proxmox_host_required_storage_ids }}"
+  changed_when: false
+  check_mode: false
+
+- name: Ensure Proxmox host has /dev/net/tun
+  ansible.builtin.shell: |
+    set -e
+    if [ ! -e /dev/net/tun ]; then
+      modprobe tun
+    fi
+    test -c /dev/net/tun
+  changed_when: false
+  check_mode: false
+  when: proxmox_host_ensure_tun | bool
+
+- name: Ensure required LXC templates are available
+  ansible.builtin.shell: |
+    set -e
+    if ! pveam list {{ item.storage }} | awk '{print $1}' | grep -qx '{{ item.storage }}:vztmpl/{{ item.file }}'; then
+      pveam download {{ item.storage }} {{ item.file }}
+    fi
+  args:
+    executable: /bin/bash
+  loop: "{{ proxmox_host_lxc_templates }}"
+  register: proxmox_host_base_lxc_template_download
+  changed_when: "'download' in (proxmox_host_base_lxc_template_download.stdout | default('') | lower)"
+
+- name: Check whether requested VM template exists
+  ansible.builtin.command: "qm status {{ proxmox_host_template_vmid }}"
+  register: proxmox_host_base_template_status
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Report template creation that would happen in check mode
+  ansible.builtin.debug:
+    msg: "Template {{ proxmox_host_template_vmid }} would be created because it is missing or proxmox_host_template_recreate=true."
+  when:
+    - ansible_check_mode
+    - proxmox_host_template_create | bool
+    - proxmox_host_template_recreate | bool or proxmox_host_base_template_status.rc != 0
+
+- name: Create Ubuntu cloud-image template when requested
+  ansible.builtin.shell: |
+    set -euo pipefail
+
+    VMID='{{ proxmox_host_template_vmid }}'
+    NAME='{{ proxmox_host_template_name }}'
+    IMG_DIR='{{ proxmox_host_template_image_dir }}'
+    IMG_NAME='{{ proxmox_host_template_image_name }}'
+    IMG_PATH="$IMG_DIR/$IMG_NAME"
+    IMG_URL='{{ proxmox_host_template_image_url }}'
+    STORAGE='{{ proxmox_host_template_storage }}'
+    BRIDGE='{{ proxmox_host_template_bridge }}'
+    CIUSER='{{ proxmox_host_template_ci_user }}'
+    SSH_PUBKEY_FILE='{{ proxmox_host_local_access_pubkey_path }}'
+    PRIMARY_CPU='{{ proxmox_host_template_cpu }}'
+    FALLBACK_CPU='{{ proxmox_host_template_cpu_fallback }}'
+
+    mkdir -p "$IMG_DIR"
+    [ -s "$IMG_PATH" ] || curl -fL "$IMG_URL" -o "$IMG_PATH"
+
+    if qm status "$VMID" >/dev/null 2>&1; then
+      qm destroy "$VMID" --purge 1 --destroy-unreferenced-disks 1 || true
+    fi
+
+    create_vm() {
+      local cpu_model="$1"
+      qm create "$VMID" \
+        --name "$NAME" \
+        --memory '{{ proxmox_host_template_memory_mb }}' \
+        --cores '{{ proxmox_host_template_cores }}' \
+        --sockets 1 \
+        --cpu "$cpu_model" \
+        --numa 0 \
+        --net0 virtio,bridge="$BRIDGE",firewall=1 \
+        --scsihw virtio-scsi-single \
+        --ostype l26 \
+        --agent 1 \
+        --bios ovmf \
+        --machine q35
+    }
+
+    if ! create_vm "$PRIMARY_CPU"; then
+      qm destroy "$VMID" --purge 1 --destroy-unreferenced-disks 1 2>/dev/null || true
+      create_vm "$FALLBACK_CPU"
+    fi
+
+    qm set "$VMID" --efidisk0 "$STORAGE":0,efitype=4m,ms-cert=2023,pre-enrolled-keys=1 || \
+      qm set "$VMID" --efidisk0 "$STORAGE":0,efitype=4m,pre-enrolled-keys=1
+    qm importdisk "$VMID" "$IMG_PATH" "$STORAGE"
+    qm set "$VMID" --scsi0 "$STORAGE":vm-${VMID}-disk-1,iothread=1
+    qm resize "$VMID" scsi0 20G
+    qm set "$VMID" --scsi1 "$STORAGE":cloudinit
+    qm set "$VMID" --ide2 none,media=cdrom
+    qm set "$VMID" --boot 'order=ide2;net0;scsi0'
+    qm set "$VMID" --ciuser "$CIUSER"
+    qm set "$VMID" --ipconfig0 ip=dhcp,ip6=dhcp
+    if [ -s "$SSH_PUBKEY_FILE" ]; then
+      qm set "$VMID" --sshkeys "$SSH_PUBKEY_FILE"
+    fi
+    qm template "$VMID"
+    qm config "$VMID"
+  args:
+    executable: /bin/bash
+  when:
+    - not ansible_check_mode
+    - proxmox_host_template_create | bool
+    - proxmox_host_template_recreate | bool or proxmox_host_base_template_status.rc != 0
+
+- name: Verify requested VM template exists after bootstrap
+  ansible.builtin.command: "qm config {{ proxmox_host_template_vmid }}"
+  register: proxmox_host_base_template_config
+  changed_when: false
+  failed_when:
+    - proxmox_host_template_create | bool
+    - proxmox_host_base_template_config.rc != 0
+  check_mode: false
+
+- name: Check whether Proxmox API user exists
+  ansible.builtin.shell: |
+    set -e
+    pveum user list | awk '{print $1}' | grep -qx '{{ proxmox_host_api_user }}'
+  register: proxmox_host_base_api_user_exists
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: proxmox_host_api_manage | bool
+
+- name: Create Proxmox API user when missing
+  ansible.builtin.command: "pveum user add {{ proxmox_host_api_user }}"
+  when:
+    - proxmox_host_api_manage | bool
+    - not ansible_check_mode
+    - proxmox_host_base_api_user_exists.rc != 0
+
+- name: Ensure Proxmox API user ACL role
+  ansible.builtin.command: >-
+    pveum acl modify {{ proxmox_host_api_acl_path }}
+    -user {{ proxmox_host_api_user }}
+    -role {{ proxmox_host_api_role }}
+  changed_when: false
+  when:
+    - proxmox_host_api_manage | bool
+    - not ansible_check_mode
+
+- name: Check whether Proxmox API token exists
+  ansible.builtin.shell: |
+    set -e
+    pveum user token list '{{ proxmox_host_api_user }}' | awk '{print $1}' | grep -qx '{{ proxmox_host_api_token_id }}'
+  register: proxmox_host_base_api_token_exists
+  changed_when: false
+  failed_when: false
+  check_mode: false
+  when: proxmox_host_api_manage | bool
+
+- name: Create Proxmox API token and store private env on host
+  ansible.builtin.shell: |
+    set -euo pipefail
+    OUT=$(pveum user token add '{{ proxmox_host_api_user }}' '{{ proxmox_host_api_token_id }}' --privsep '{{ proxmox_host_api_privsep }}' --output-format json)
+    VALUE=$(python3 -c 'import json,sys; print(json.load(sys.stdin)["value"])' <<<"$OUT")
+    install -m 0700 -d "$(dirname '{{ proxmox_host_api_env_path }}')"
+    {
+      printf "export PROXMOX_VE_ENDPOINT='https://{{ ansible_host | default(inventory_hostname) }}:8006/'\n"
+      printf "export PROXMOX_VE_API_TOKEN='{{ proxmox_host_api_user }}!{{ proxmox_host_api_token_id }}=%s'\n" "$VALUE"
+      printf "export PROXMOX_VE_INSECURE='true'\n"
+    } >'{{ proxmox_host_api_env_path }}'
+    chmod 600 '{{ proxmox_host_api_env_path }}'
+  args:
+    executable: /bin/bash
+  no_log: true
+  when:
+    - proxmox_host_api_manage | bool
+    - not ansible_check_mode
+    - proxmox_host_base_api_token_exists.rc != 0
+
+- name: Warn when API token exists but generated env file is absent
+  ansible.builtin.debug:
+    msg: "API token already exists. Existing Proxmox token secrets cannot be recovered; rotate/recreate deliberately if {{ proxmox_host_api_env_path }} is missing or stale."
+  when:
+    - proxmox_host_api_manage | bool
+    - proxmox_host_base_api_token_exists.rc == 0

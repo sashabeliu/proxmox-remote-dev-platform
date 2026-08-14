@@ -6,6 +6,7 @@ common_packages:
   - ca-certificates
   - python3-pip
   - python3-venv
+  - qemu-guest-agent
 
 tailscale_auth_key: "<REPLACE_ME>"
 tailscale_args: "--ssh"

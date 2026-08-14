@@ -1,0 +1,13 @@
+- hosts: dev
+  become: yes
+  roles:
+    - common
+    - docker
+    - storage_client
+    - git_ssh
+    - code_server
+
+- hosts: tailscale_lxc
+  become: yes
+  roles:
+    - tailscale_lxc

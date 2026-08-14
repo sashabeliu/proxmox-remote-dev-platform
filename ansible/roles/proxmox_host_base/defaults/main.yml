@@ -1,0 +1,60 @@
+---
+# Base packages useful on a freshly installed Proxmox host.
+proxmox_host_packages:
+  - curl
+  - ca-certificates
+  - gnupg
+  - jq
+  - git
+  - python3
+  - python3-venv
+  - unzip
+  - sudo
+
+# Keep repo changes opt-in. Fresh lab rebuilds may set this true in a private vars file.
+proxmox_host_manage_apt_repos: false
+proxmox_host_disable_enterprise_repos: false
+proxmox_host_enable_no_subscription_repo: true
+
+# Root SSH access. Public keys are not secrets, but keep private overrides outside public repo if preferred.
+proxmox_host_root_authorized_keys: []
+proxmox_host_local_access_pubkey_path: /root/local-access.pub
+proxmox_host_local_access_pubkey: ""
+
+# Host prerequisites.
+proxmox_host_ensure_tun: true
+proxmox_host_required_bridge: vmbr0
+proxmox_host_required_storage_ids:
+  - local
+  - local-lvm
+
+# LXC templates to ensure exist.
+proxmox_host_lxc_templates:
+  - storage: local
+    file: debian-12-standard_12.12-1_amd64.tar.zst
+
+# Optional Ubuntu cloud-image template creation.
+proxmox_host_template_create: false
+proxmox_host_template_recreate: false
+proxmox_host_template_vmid: 9000
+proxmox_host_template_name: ubuntu-22-template
+proxmox_host_template_image_url: https://cloud-images.ubuntu.com/jammy/current/jammy-server-cloudimg-amd64.img
+proxmox_host_template_image_name: ubuntu-22.04-server-cloudimg-amd64.img
+proxmox_host_template_image_dir: /var/lib/vz/template/iso
+proxmox_host_template_storage: local-lvm
+proxmox_host_template_memory_mb: 2048
+proxmox_host_template_cores: 2
+proxmox_host_template_cpu: x86-64-v2-AES
+proxmox_host_template_cpu_fallback: x86-64-v2
+proxmox_host_template_bridge: "{{ proxmox_host_required_bridge }}"
+proxmox_host_template_ci_user: ubuntu
+
+# Optional Proxmox API user/token bootstrap for OpenTofu.
+# Token secret is generated once and stored on the Proxmox host in proxmox_host_api_env_path.
+proxmox_host_api_manage: false
+proxmox_host_api_user: terraform-rehearsal@pve
+proxmox_host_api_token_id: r5-plan
+proxmox_host_api_role: Administrator
+proxmox_host_api_acl_path: /
+proxmox_host_api_privsep: 0
+proxmox_host_api_env_path: /root/proxmox-api-token.env

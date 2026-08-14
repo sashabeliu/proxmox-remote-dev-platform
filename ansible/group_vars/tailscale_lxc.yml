@@ -1,0 +1,20 @@
+tailscale_lxc_auth_key: "<REPLACE_ME>"
+tailscale_lxc_args: "--ssh"
+tailscale_lxc_advertise_routes:
+  - "192.168.2.0/24"
+tailscale_lxc_advertise_exit_node: false
+tailscale_lxc_accept_routes: false
+
+# Remap the real LAN into a non-conflicting Tailnet-visible subnet.
+# Tailnet clients access 192.168.2.x; the LXC translates that to real LAN 192.168.1.x.
+tailscale_lxc_remap_enabled: true
+tailscale_lxc_real_subnet: "192.168.1.0/24"
+tailscale_lxc_tailnet_subnet: "192.168.2.0/24"
+tailscale_lxc_lan_interface: "eth0"
+
+tailscale_lxc_debug: false
+
+# OpenTofu initializes LXC SSH keys for the root account.
+ansible_user: root
+ansible_ssh_private_key_file: /home/ubuntu/.ssh/ansible_ed25519
+ansible_python_interpreter: /usr/bin/python3

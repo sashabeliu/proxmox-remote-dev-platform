@@ -22,7 +22,7 @@
     dest: "{{ workspace_root }}/{{ item.name }}"
     version: "{{ item.version }}"
     key_file: "/home/{{ docker_user }}/.ssh/git_ed25519"
-    accept_newhostkey: true
+    accept_hostkey: true
     update: false
   loop: "{{ dev_projects }}"
 

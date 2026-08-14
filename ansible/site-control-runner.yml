@@ -1,0 +1,4 @@
+- hosts: control
+  become: no
+  roles:
+    - control_runner
