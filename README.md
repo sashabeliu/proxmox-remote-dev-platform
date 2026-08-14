@@ -147,11 +147,12 @@ Current repo state:
 - local baseline was created and pushed to GitHub
 - sanitized OpenTofu and Ansible content has been imported into the repo
 - same-path sanitized placeholders are being used for clarity
-- the platform is documented, but not yet fully disaster-recovery hardened
+- command-level zero-to-lab and lab-profile rebuild runbooks are documented and tested for the non-GPU lab scope
+- the platform is documented, but not yet fully disaster-recovery hardened for production/GPU/stateful data
 
 Known remaining work:
-- finish exact command-level rebuild runbooks
 - move or protect live secrets with a stronger secret-management workflow
 - define a safer OpenTofu state strategy
 - configure and test real backup jobs
 - capture application-level drift and restore rules for guest workloads
+- keep GPU/production-shaped rebuilds deferred until matching hardware capacity and PCI mappings are available

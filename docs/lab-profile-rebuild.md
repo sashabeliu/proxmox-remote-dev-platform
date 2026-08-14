@@ -216,3 +216,16 @@ The lab profile is considered rebuilt when:
 - live NAT table contains the NETMAP/MASQUERADE rules
 - Tailscale route `192.168.2.0/24` is approved or auto-approved
 - `gpu-dev-01` remains excluded from this lab profile
+
+## Latest verification
+
+Verified on `2026-08-14` against `proxmox-rulab`:
+
+- VM `101 ansible-control`, VM `110 dev-00`, and CT `100 tailscale-rulab` were all running.
+- `qm agent 110 ping` returned success.
+- CT `100` had active `tailscaled`, visible `/dev/net/tun`, IPv4 and IPv6 forwarding enabled, and live NETMAP/MASQUERADE NAT rules.
+- Tailscale status reported `BackendState=Running` for `tailscale-rulab.tail20bec0.ts.net.`.
+- `PrimaryRoutes` included `192.168.2.0/24`.
+- `AllowedIPs` included `192.168.2.0/24`.
+- From VM `101`, Ansible ping succeeded for both `dev` and `tailscale_lxc` groups.
+- From VM `101`, targeted OpenTofu drift check for `dev-00` and `tailscale-rulab` returned `TOFU_PLAN_RC=0` / `No changes`.

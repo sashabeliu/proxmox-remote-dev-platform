@@ -303,10 +303,9 @@ ansible-playbook -i inventory/hosts.ini site.yml
 
 ## Known remaining gaps
 This page is useful, but the platform is not yet fully rebuild-hard:
-- exact template build steps are still not pinned command-by-command
-- exact package install commands for `ansible-control` are still not pinned
+- full production/GPU rebuild remains deferred until matching hardware capacity and PCI mappings are available
 - `storage-vm` is still manual/static, not OpenTofu-managed
-- Tailscale LXC recovery is codified, but fresh auth-key/OAuth generation and route approval remain external prerequisites
+- Tailscale LXC recovery is codified; fresh auth-key/OAuth generation and route approval/auto-approval remain explicit post-recreate prerequisites
 - guest workload repository setup still requires valid GitHub token/deploy-key rights and upstream repo access
 - scheduled Proxmox backup jobs were not observed during audit
 - OpenTofu state handling still needs hardening
