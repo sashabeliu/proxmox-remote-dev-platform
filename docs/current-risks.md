@@ -73,6 +73,8 @@ Observed/reduced during rehearsal:
 - because clean Tailscale LXC recreate creates a new Tailnet node identity, route approval for `192.168.2.0/24` can remain external unless Tailnet ACL `autoApprovers.routes` covers the rebuilt node; the current rebuilt lab node has the route approved and verified
 - a lab-safe rebuild profile now exists in `scripts/rebuild_lab_profile.sh` and `docs/lab-profile-rebuild.md`; it targets `dev-00` plus `tailscale-rulab` and intentionally excludes `gpu-dev-01`
 - combined clean non-GPU lab rebuild was performed: VM `110 dev-00` and CT `100 tailscale-rulab` were destroyed/recreated, host/LXC/dev Ansible convergence succeeded, QEMU guest agent was installed/started, and targeted OpenTofu post-Ansible plan returned no changes
+- full destructive zero-config non-GPU lab rebuild was performed from a fresh public repo clone plus one local `~/.config/proxmox-remote-dev-platform/site.yml`: VM/template `9000`, VM `101`, VM `110`, CT `100`, and the Debian 12 LXC template were wiped and recreated; final acceptance passed with QGA on VM101/VM110, Ansible ping for `dev` and `tailscale_lxc`, Tailscale route `192.168.2.0/24` active, and targeted OpenTofu `No changes`
+- the full zero-config rehearsal exposed three remaining automation hardening items: region-specific Debian apt mirrors can block host bootstrap, recreated static-IP guests need known_hosts cleanup/isolation, and QEMU guest-agent readiness should be treated as a post-SSH convergence step rather than a hard first-boot provider dependency
 
 Recommended action:
 - keep route approval/auto-approval as an explicit post-recreate check for every new Tailscale LXC identity

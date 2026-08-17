@@ -219,13 +219,20 @@ The lab profile is considered rebuilt when:
 
 ## Latest verification
 
-Verified on `2026-08-14` against `proxmox-rulab`:
+Verified on `2026-08-17` during a destructive zero-config rebuild from the public repo plus `~/.config/proxmox-remote-dev-platform/site.yml`:
 
-- VM `101 ansible-control`, VM `110 dev-00`, and CT `100 tailscale-rulab` were all running.
-- `qm agent 110 ping` returned success.
-- CT `100` had active `tailscaled`, visible `/dev/net/tun`, IPv4 and IPv6 forwarding enabled, and live NETMAP/MASQUERADE NAT rules.
-- Tailscale status reported `BackendState=Running` for `tailscale-rulab.tail20bec0.ts.net.`.
+- The lab host was wiped first: VM `101 ansible-control`, VM `110 dev-00`, VM/template `9000 ubuntu-22-template`, CT `100 tailscale-rulab`, and the local Debian 12 LXC template were removed.
+- The rebuild recreated VM/template `9000`, VM `101 ansible-control`, VM `110 dev-00`, and CT `100 tailscale-rulab`.
+- VM `101` and VM `110` were running and `qm agent 101 ping` / `qm agent 110 ping` both returned success.
+- CT `100` was running with active `tailscaled`, visible `/dev/net/tun`, IPv4 and IPv6 forwarding enabled, and live NETMAP/MASQUERADE NAT rules.
+- Tailscale status reported `BackendState=Running` for `tailscale-rulab`.
 - `PrimaryRoutes` included `192.168.2.0/24`.
 - `AllowedIPs` included `192.168.2.0/24`.
 - From VM `101`, Ansible ping succeeded for both `dev` and `tailscale_lxc` groups.
+- The lab-profile Ansible convergence completed with `dev-00: failed=0` and `tailscale-rulab: failed=0`.
 - From VM `101`, targeted OpenTofu drift check for `dev-00` and `tailscale-rulab` returned `TOFU_PLAN_RC=0` / `No changes`.
+
+Rehearsal recovery notes:
+- Proxmox host apt initially failed because the host used unreachable `ftp.ru.debian.org`; switching `/etc/apt/sources.list` to `http://deb.debian.org/debian` fixed host bootstrap.
+- Recreated static-IP guests changed SSH host keys; clear or isolate `known_hosts` entries for recreated lab IPs before SSH wait checks.
+- Fresh cloud-image clones can be SSH-ready before QEMU guest agent is installed/running; the recovery path must tolerate installing/starting QGA after first SSH.

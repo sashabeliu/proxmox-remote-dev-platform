@@ -393,6 +393,30 @@ It intentionally excludes the production GPU VM profile from the lab deployment.
 
 Important: `--post-wipe-proxmox-host` must remain reachable after CT100 is destroyed. Do not point it at a Tailscale/remapped address served by CT100. If the only remote path to Proxmox is through the Tailscale LXC, a true full wipe cannot continue unattended; use a LAN/VPN/OOB management path first, or preserve CT100 until a replacement management path exists.
 
+### 2026-08-17 destructive zero-config proof notes
+
+A destructive run against `proxmox-rulab` proved that the non-GPU lab can be rebuilt from a public repo clone plus one local `site.yml` without a maintained duplicate private repo.
+
+The run also exposed operator prerequisites that should be checked before future rehearsals:
+
+```text
+1. Proxmox host Debian apt mirrors must be reachable from the recovery network.
+   In this run, ftp.ru.debian.org was unreachable and was replaced with http://deb.debian.org/debian.
+2. Static-IP guests recreated by the wipe have new SSH host keys.
+   Clear or isolate known_hosts entries for 192.168.1.211 / 192.168.1.112 before SSH wait checks.
+3. Fresh cloud-image clones may be SSH-ready before qemu-guest-agent is installed/running.
+   Treat QGA readiness as a convergence step, not as the only proof that the VM is recoverable.
+4. If a run fails after the wipe has already completed, continue from the same materialized execution tree without rerunning --wipe-existing-guests-and-templates.
+```
+
+Final observed acceptance:
+- VM/template `9000`, VM `101`, VM `110`, and CT `100` were recreated.
+- `qm agent 101 ping` and `qm agent 110 ping` succeeded.
+- Ansible ping succeeded for `dev` and `tailscale_lxc` from VM101.
+- CT100 had TUN, forwarding, live/persistent remap rules, and Tailscale `BackendState=Running`.
+- Tailscale `PrimaryRoutes` and `AllowedIPs` included `192.168.2.0/24`.
+- Targeted OpenTofu post-Ansible plan returned `No changes` / exit code 0.
+
 ## Full non-GPU zero-to-lab run
 
 On a fresh Proxmox host with root SSH ready and a local `site.yml` present, the generic form is:
