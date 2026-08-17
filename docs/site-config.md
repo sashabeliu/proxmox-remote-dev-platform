@@ -66,7 +66,7 @@ python3 scripts/materialize_site_config.py \
   --repo-root "$PWD"
 ```
 
-This writes the same execution files used by the older private clone workflow:
+This writes the runtime execution files that older runbooks used to get from a separate private clone:
 
 ```text
 tofu/proxmox.env
@@ -98,7 +98,7 @@ bash scripts/rebuild_from_zero_lab.sh \
 
 ## Lab-profile-only destructive rerun
 
-From VM101:
+From VM101, use the generated private execution directory created by the handoff. The path currently keeps the historical `-private` suffix for compatibility, but it is not a separately maintained duplicate repo:
 
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private

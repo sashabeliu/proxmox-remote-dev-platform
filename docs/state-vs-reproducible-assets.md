@@ -20,7 +20,8 @@ Examples:
 
 Recovery method:
 - restore repo
-- inject secrets
+- restore/create `~/.config/proxmox-remote-dev-platform/site.yml`
+- materialize runtime files or run the zero script with `--config`
 - run OpenTofu
 
 ### Configuration management layer
@@ -41,7 +42,8 @@ Examples:
 
 Recovery method:
 - restore repo
-- inject secrets
+- restore/create `~/.config/proxmox-remote-dev-platform/site.yml`
+- materialize runtime files or run the zero script with `--config`
 - run Ansible
 
 ### Documentation and runbooks
@@ -65,7 +67,8 @@ Examples:
 - `ansible/group_vars/gpu_dev.yml`
 
 Recovery method:
-- replace placeholders from secret source before apply
+- generate execution values from `~/.config/proxmox-remote-dev-platform/site.yml` before apply
+- keep committed versions sanitized with placeholders
 
 ## Category C - Secret material
 
@@ -80,7 +83,8 @@ Examples:
 
 Recovery method:
 - restore from secret manager or secure offline backup
-- inject into tracked placeholder paths or into runtime-only private files
+- put operator/site values into `~/.config/proxmox-remote-dev-platform/site.yml`
+- materialize into runtime-only execution files when needed
 
 ## Category D - Stateful data that must be backed up
 

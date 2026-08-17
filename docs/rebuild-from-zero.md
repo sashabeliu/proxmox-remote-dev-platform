@@ -21,11 +21,11 @@ The lab profile intentionally excludes `gpu-dev-01`.
 
 ## Current automation entrypoint
 
-From a prepared private execution clone on an external Debian/Ubuntu runner:
+From an external Debian/Ubuntu runner with a public repo clone and one private local site config:
 
 ```bash
-cd /home/ubuntu/proxmox-remote-dev-platform-private
-bash scripts/rebuild_from_zero_lab.sh --proxmox-host <fresh-proxmox-ip-or-ssh-alias>
+cd /home/alexander/proxmox-remote-dev-platform
+bash scripts/rebuild_from_zero_lab.sh --config ~/.config/proxmox-remote-dev-platform/site.yml
 ```
 
 Default mode is non-destructive check/plan mode.
@@ -34,20 +34,20 @@ The preferred full rebuild is external bootstrap + VM101 handoff:
 
 ```bash
 bash scripts/rebuild_from_zero_lab.sh \
-  --proxmox-host <fresh-proxmox-ip-or-ssh-alias> \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
   --apply \
   --create-template \
   --create-control-vm \
   --handoff-to-control
 ```
 
-In handoff mode, the external runner creates and configures VM101, copies the private execution clone to it, then VM101 runs the remaining lab deployment.
+In handoff mode, the external runner creates and configures VM101, copies a materialized execution tree to it, then VM101 runs the remaining lab deployment. The VM101 path currently keeps the historical name `/home/ubuntu/proxmox-remote-dev-platform-private`, but it is generated from the public repo plus `site.yml` and is not a separately maintained repo.
 
 To apply the host bootstrap and rebuild the selected lab guests directly from the external runner instead:
 
 ```bash
 bash scripts/rebuild_from_zero_lab.sh \
-  --proxmox-host <fresh-proxmox-ip-or-ssh-alias> \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
   --apply \
   --destroy-existing
 ```
@@ -106,15 +106,30 @@ The external runner is intentionally temporary. Its job is to bootstrap Proxmox 
 
 ## Private config materialization
 
-For a real apply, run from the private execution clone or pass a private bundle:
+Preferred current input is one local private site config:
+
+```text
+~/.config/proxmox-remote-dev-platform/site.yml
+```
+
+Create it from the repo template:
+
+```bash
+mkdir -p ~/.config/proxmox-remote-dev-platform
+cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml
+chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml
+nano ~/.config/proxmox-remote-dev-platform/site.yml
+```
+
+For a real apply, pass it to the zero script:
 
 ```bash
 bash scripts/rebuild_from_zero_lab.sh \
-  --proxmox-host <host> \
-  --private-bundle-root /home/ubuntu/private-bundle-parent/proxmox-remote-dev-platform
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
+  --proxmox-host <optional-cli-override>
 ```
 
-The private bundle provides real values for:
+The materializer writes runtime execution files such as:
 
 ```text
 tofu/proxmox.env
@@ -126,7 +141,9 @@ ansible/group_vars/proxmox_hosts.yml
 ansible/group_vars/tailscale_lxc.yml
 ```
 
-Do not run applies from the public sanitized clone.
+These files replace placeholders with real values in the local execution context. Do not commit them after materialization.
+
+Legacy private-bundle mode remains available through `--private-bundle-root`, but it is no longer the preferred source-of-truth workflow.
 
 ## Proxmox host bootstrap
 
@@ -233,7 +250,7 @@ If a new token is created, the secret is stored only on the Proxmox host at:
 /root/proxmox-api-token.env
 ```
 
-With `--pull-generated-token`, the script copies it into the private clone:
+With `--pull-generated-token`, the script copies it into the current materialized execution context:
 
 ```text
 tofu/proxmox.env
@@ -250,7 +267,7 @@ external runner = bootstrap installer
 VM101 ansible-control = permanent control plane
 ```
 
-To generate a private `tofu/control-vm.auto.tfvars.json`, create VM101, configure it, copy the private execution clone there, and hand off the rest of the deployment:
+To generate the private runtime `tofu/control-vm.auto.tfvars.json`, create VM101, configure it, copy the materialized execution tree there, and hand off the rest of the deployment:
 
 ```bash
 bash scripts/rebuild_from_zero_lab.sh \
@@ -396,7 +413,7 @@ bash scripts/rebuild_from_zero_lab.sh \
 
 Legacy private-bundle mode remains available with `--private-bundle-root`, but the preferred workflow is now public repo + local site config.
 
-For an already configured lab host where VM101/template already exist and you only want to retest VM110/CT100 recreation, use the lab-profile script from VM101 instead of the full wipe:
+For an already configured lab host where VM101/template already exist and you only want to retest VM110/CT100 recreation, use the lab-profile script from the generated VM101 execution directory instead of the full wipe:
 
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private

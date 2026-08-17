@@ -86,22 +86,25 @@ Observed validated versions during rehearsal:
 
 
 ## Recommended operator pattern
-- keep one safe/public clone for git work
-- keep one private execution clone for materialized secrets and apply/playbook runs
+- keep one safe/public repo clone as the source of truth
+- keep one private local `site.yml` outside git
+- let the zero-to-lab handoff generate a materialized execution directory on VM101 when needed
 
-Example repo locations:
-- public clone: `/home/ubuntu/proxmox-remote-dev-platform`
-- private clone: `/home/ubuntu/proxmox-remote-dev-platform-private`
+Current paths:
+- public/source clone on external runner: `/home/alexander/proxmox-remote-dev-platform`
+- local private config on external runner: `~/.config/proxmox-remote-dev-platform/site.yml`
+- generated VM101 execution directory: `/home/ubuntu/proxmox-remote-dev-platform-private`
+
+The VM101 directory keeps the historical `-private` suffix for compatibility, but it is not a separately maintained duplicate repo.
 
 ## Bootstrap steps
 1. Recreate the control VM and ensure SSH access as `ubuntu`.
-2. Install the required tooling listed above.
-3. Clone this repo to a public path.
-4. Create a private execution clone.
-5. Restore `/home/ubuntu/.ssh/ansible_ed25519` with correct permissions.
-6. Materialize private values into the private clone.
-7. Run deploy validation in the private clone.
-8. Either run commands manually from the private clone or create compatibility symlinks for the legacy helpers.
+2. Install the required tooling listed above, or let `scripts/rebuild_from_zero_lab.sh --create-control-vm --handoff-to-control` do it.
+3. Restore `/home/ubuntu/.ssh/ansible_ed25519` with correct permissions.
+4. From the external runner, use the public repo plus `~/.config/proxmox-remote-dev-platform/site.yml`.
+5. Run `scripts/rebuild_from_zero_lab.sh --config ... --handoff-to-control` so runtime files are materialized and copied to VM101.
+6. Run deploy validation in the VM101 execution directory.
+7. Either run commands manually from that execution directory or create compatibility symlinks for the legacy helpers.
 
 ### Rehearsed VM creation notes
 Validated on `proxmox-rulab` after aligning the lab template to the original production template profile:
@@ -162,7 +165,7 @@ Observed aligned rehearsal result:
 - Proxmox-side guest-agent check succeeded after installing `qemu-guest-agent`
 
 ## Compatibility symlink option
-If you want the current helper scripts to work without editing them, point the old paths at the private clone.
+If you want legacy helper scripts to work without editing them, point the old paths at the generated VM101 execution directory.
 
 Validated commands:
 ```bash
@@ -173,13 +176,34 @@ ln -sfn /home/ubuntu/proxmox-remote-dev-platform-private/ansible /home/ubuntu/in
 ```
 
 ## Secret materialization
-From the private clone:
+Preferred current flow from the external runner:
+
+```bash
+cd /home/alexander/proxmox-remote-dev-platform
+bash scripts/rebuild_from_zero_lab.sh \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
+  --apply \
+  --create-control-vm \
+  --handoff-to-control
+```
+
+Manual materialization, if you intentionally copied `site.yml` onto the runner and are already inside an execution directory:
+
+```bash
+python3 scripts/materialize_site_config.py \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
+  --repo-root "$PWD"
+bash scripts/validate_repo_safety.sh --mode deploy
+```
+
+Legacy private-bundle materialization remains available only for old runbooks:
+
 ```bash
 bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>
 bash scripts/validate_repo_safety.sh --mode deploy
 ```
 
-### Rehearsed key and private bundle restore
+### Historical rehearsal: key and private bundle restore
 Validated on the `proxmox-rulab` rehearsal `ansible-control` VM. Do not paste or log key/bundle contents; record only paths, ownership, permissions, and validator output.
 
 Approved restore inputs used during rehearsal:
@@ -188,7 +212,7 @@ Approved restore inputs used during rehearsal:
 - target VM/user: `ubuntu@192.168.2.211`
 - target private key path: `/home/ubuntu/.ssh/ansible_ed25519`
 - target private bundle path: `/home/ubuntu/private-bundle-parent/proxmox-remote-dev-platform`
-- target private execution clone: `/home/ubuntu/proxmox-remote-dev-platform-private`
+- target execution directory: `/home/ubuntu/proxmox-remote-dev-platform-private`
 
 Rehearsed commands, with secret values kept external:
 ```bash
@@ -211,7 +235,7 @@ tar -C /path/to/private-bundle-parent -czf - proxmox-remote-dev-platform |
     find /home/ubuntu/private-bundle-parent/proxmox-remote-dev-platform -type f -exec chmod 600 {} +
   '
 
-# Materialize the private execution clone and validate deploy mode.
+# Legacy: materialize the execution directory from a private bundle and validate deploy mode.
 ssh ubuntu@<ansible-control-ip> '
   cd /home/ubuntu/proxmox-remote-dev-platform-private
   bash scripts/materialize_private_config.sh --bundle-root /home/ubuntu/private-bundle-parent/proxmox-remote-dev-platform
@@ -223,10 +247,10 @@ Observed rehearsal result:
 - `/home/ubuntu/.ssh/ansible_ed25519`: `600 ubuntu:ubuntu`
 - `/home/ubuntu/private-bundle-parent`: `700 ubuntu:ubuntu`
 - deploy validation passed after materializing all required private files
-- private clone had expected local modifications only in the materialized secret-bearing files
+- execution directory had expected local modifications only in the materialized secret-bearing files
 
-## Manual recovery flow from the monorepo
-From the private clone:
+## Manual recovery flow from the materialized execution directory
+From the generated VM101 execution directory:
 ```bash
 cd tofu
 set -a
@@ -251,10 +275,10 @@ ansible-playbook -i inventory/hosts.ini site.yml
 ### OpenTofu preflight findings from aligned VM 101
 Observed on the recreated `ansible-control` VM:
 - redacted target inspection showed the materialized `terraform.tfvars` initially pointed at the original endpoint host `192.168.1.200`
-- the lab preflight updated the private execution clone to use `https://192.168.1.10:8006/`
-- a lab-scoped Proxmox API token was created for the rehearsal and materialized into the private clone without committing it
+- the lab preflight updated the execution directory to use `https://192.168.1.10:8006/`
+- a lab-scoped Proxmox API token was created for the rehearsal and materialized into the execution directory without committing it
 - `tofu init` could not use `registry.opentofu.org` directly because provider discovery returned `403 Forbidden`
-- a temporary filesystem mirror using the pinned `bpg/proxmox` provider version let `tofu init` proceed after backing up/restoring the private clone lock file
+- a temporary filesystem mirror using the pinned `bpg/proxmox` provider version let `tofu init` proceed after backing up/restoring the execution directory lock file
 - `tofu validate` passed
 - `tofu plan` succeeded with result: `2 to add, 0 to change, 0 to destroy`
 - planned resources:

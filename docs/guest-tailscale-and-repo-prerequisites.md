@@ -29,7 +29,7 @@ tailscale_debug: false
 ```
 
 OAuth usage:
-- store OAuth client ID/secret only in the private bundle or secret manager
+- store OAuth client ID/secret only in the local private site config or a secret manager
 - use OAuth only to generate short-lived auth keys for the rebuild
 - never commit OAuth credentials or generated auth keys
 
@@ -78,7 +78,7 @@ If credentials are not ready, do not repeatedly retry stale keys. Instead:
 3. continue only with independent infrastructure checks
 4. do not mark final acceptance complete until fresh credentials are supplied and the full playbook succeeds from the beginning
 
-Example narrow continuation after a Tailscale failure:
+Example narrow continuation after a Tailscale failure, from the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/ansible
 ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini site.yml --limit dev-00 --start-at-task 'common : Update apt cache'

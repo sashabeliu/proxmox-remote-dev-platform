@@ -11,7 +11,7 @@ You need all of these before starting:
 - replacement Proxmox host or equivalent target
 - Proxmox installer/media
 - this repo
-- private secret bundle
+- one private local site config, normally `~/.config/proxmox-remote-dev-platform/site.yml`
 - backup of `/srv/shared`
 - SSH access from your workstation
 - access to GitHub repos used by workloads
@@ -68,41 +68,60 @@ Do this:
 - restore `/home/ubuntu/.ssh/ansible_ed25519`
 
 Important note:
-- exact package install commands for this VM are not yet pinned in the repo
+- package/tool install commands for this VM are pinned in `docs/ansible-control-bootstrap.md` and automated by the zero-to-lab handoff path.
 
 Reference:
 - `docs/ansible-control-bootstrap.md`
 
-## 4. Clone the repo on the control VM
-Recommended pattern:
-- one public/safe clone
-- one private execution clone
+## 4. Clone the repo and prepare one private site config
+Preferred current pattern:
+- one public/safe repo clone
+- one private local site config outside git
+- generated runtime execution files when applying or handing off to VM101
 
-Example:
+External runner example:
 ```bash
-cd /home/ubuntu
+cd /home/alexander
 git clone https://github.com/sashabeliu/proxmox-remote-dev-platform.git proxmox-remote-dev-platform
-git clone https://github.com/sashabeliu/proxmox-remote-dev-platform.git proxmox-remote-dev-platform-private
+cd proxmox-remote-dev-platform
+mkdir -p ~/.config/proxmox-remote-dev-platform
+cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml
+chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml
+nano ~/.config/proxmox-remote-dev-platform/site.yml
 ```
 
-Use the private clone for all secret materialization and apply/playbook runs.
+The `site.yml` file replaces the old need to maintain a second private repo clone. It contains private Proxmox/Tailscale/code-server/VM/LXC settings and must not be committed.
 
-## 5. Materialize secrets into the private clone
-From the private clone:
+## 5. Run zero-to-lab recovery from the public clone plus `site.yml`
+From the external runner public clone:
 ```bash
-cd /home/ubuntu/proxmox-remote-dev-platform-private
-bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>
-bash scripts/validate_repo_safety.sh --mode deploy
+cd /home/alexander/proxmox-remote-dev-platform
+bash scripts/rebuild_from_zero_lab.sh \
+  --config ~/.config/proxmox-remote-dev-platform/site.yml \
+  --apply \
+  --wipe-existing-guests-and-templates \
+  --manage-apt-repos \
+  --create-template \
+  --create-control-vm \
+  --handoff-to-control \
+  --with-provider-mirror
 ```
 
 Expected result:
-- materialization succeeds
-- deploy validation passes
+- `site.yml` materializes runtime execution files locally
+- Proxmox host baseline/template/control VM are created or verified
+- the materialized execution tree is copied to VM101 for handoff
+- VM101 finishes the selected non-GPU lab deployment
+- deploy validation passes before apply/playbook execution
+
+The VM101 execution directory currently uses the historical path `/home/ubuntu/proxmox-remote-dev-platform-private` for compatibility, but it is generated from the public repo plus `site.yml`; it is not a separately maintained duplicate source repo.
 
 Stop if deploy validation fails.
 
 Reference:
-- `docs/private-secret-bundle-workflow.md`
+- `docs/site-config.md`
+- `docs/rebuild-from-zero.md`
+- `docs/private-secret-bundle-workflow.md` for legacy private-bundle mode only
 
 ## 6. Optional: recreate legacy helper paths
 Do this only if you want the old helper scripts to work unchanged.
@@ -114,10 +133,10 @@ ln -sfn /home/ubuntu/proxmox-remote-dev-platform-private/scripts /home/ubuntu/in
 ln -sfn /home/ubuntu/proxmox-remote-dev-platform-private/ansible /home/ubuntu/infra-ansible
 ```
 
-If you do not need legacy helpers, skip this and run commands manually from the monorepo.
+If you do not need legacy helpers, skip this and run commands manually from the generated execution directory or monorepo layout.
 
 ## 7. Apply Proxmox host baseline automation
-From the private clone:
+From the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/ansible
 ansible-playbook -i inventory/proxmox-hosts.ini site-proxmox-hosts.yml
@@ -133,7 +152,7 @@ Reference:
 - `docs/proxmox-host-baseline.md`
 
 ## 8. Provision guests with OpenTofu
-From the private clone:
+From the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/tofu
 tofu init
@@ -172,7 +191,7 @@ Reference:
 - `docs/lab-profile-rebuild.md`
 
 ## 9. Render guest inventory
-From the private clone:
+From the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/tofu
 python ../scripts/render_inventory.py
@@ -184,7 +203,7 @@ Expected result:
 - static `storage-vm` entry remains present
 
 ## 10. Optional: deploy the Tailscale utility LXC
-Do this when the platform needs the `mltailscale` subnet-router/utility LXC restored.
+Do this when the platform needs the Tailscale subnet-router/utility LXC restored. In the current non-GPU lab profile this is `tailscale-rulab`; older production notes may call the same utility role `mltailscale`.
 Skip guest VM Tailnet joins and workload repo cloning if those credentials are not ready yet; document them as prerequisites rather than blocking LXC deployment.
 
 Prerequisites:
@@ -194,11 +213,11 @@ Prerequisites:
 - the Tailscale OAuth client/auth-key policy permits the requested route/tag behavior
 - advertised subnet routes can be approved in the Tailscale admin console unless auto-approved by policy
 
-From the private clone:
+From the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/tofu
-tofu plan -target='proxmox_virtual_environment_container.tailscale_lxc["mltailscale"]'
-tofu apply -target='proxmox_virtual_environment_container.tailscale_lxc["mltailscale"]'
+tofu plan -target='proxmox_virtual_environment_container.tailscale_lxc["tailscale-rulab"]'
+tofu apply -target='proxmox_virtual_environment_container.tailscale_lxc["tailscale-rulab"]'
 python ../scripts/render_inventory.py
 
 cd ../ansible
@@ -210,7 +229,7 @@ Reference:
 - `docs/tailscale-recovery.md`
 
 ## 11. Configure guests with Ansible
-From the private clone:
+From the generated VM101 execution directory:
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/ansible
 ansible-playbook -i inventory/hosts.ini site.yml
@@ -268,11 +287,14 @@ Recovery is acceptable only if all are true:
 - app repos can resume without hidden manual tribal knowledge
 
 ## Fast reference commands
-Private clone setup:
+Preferred site-config setup:
 ```bash
-cd /home/ubuntu/proxmox-remote-dev-platform-private
-bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>
-bash scripts/validate_repo_safety.sh --mode deploy
+cd /home/alexander/proxmox-remote-dev-platform
+mkdir -p ~/.config/proxmox-remote-dev-platform
+cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml
+chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml
+nano ~/.config/proxmox-remote-dev-platform/site.yml
+bash scripts/rebuild_from_zero_lab.sh --config ~/.config/proxmox-remote-dev-platform/site.yml --skip-lab-profile
 ```
 
 Host baseline:

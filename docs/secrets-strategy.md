@@ -62,13 +62,16 @@ Do not commit:
 ## Current recommended workflow
 
 - keep sanitized placeholders in the tracked repo
-- keep unsanitized execution files in a private bundle outside git
-- mirror repo-relative paths inside that private bundle
+- keep one private local site config outside git, normally `~/.config/proxmox-remote-dev-platform/site.yml`
+- create the local config from `config/site.example.yml`
+- materialize runtime execution files from `site.yml` with `scripts/materialize_site_config.py` or let `scripts/rebuild_from_zero_lab.sh --config ...` do it automatically
 - use repo validation before commit/push
-- use deploy validation before running OpenTofu or Ansible
+- use deploy validation before running OpenTofu or Ansible from a materialized execution context
+- keep legacy private-bundle materialization only for compatibility with older runbooks
 
 See also:
-- `docs/private-secret-bundle-workflow.md`
+- `docs/site-config.md`
+- `docs/private-secret-bundle-workflow.md` (legacy compatibility)
 
 ## Future options
 - encrypted private bundle outside git
@@ -79,7 +82,7 @@ See also:
 ## Minimum acceptable operator workflow
 1. clone repo
 2. install repo-managed hooks
-3. restore secret bundle from secure source
-4. place secrets into documented local paths or materialize them into a private execution working copy
+3. restore or create `~/.config/proxmox-remote-dev-platform/site.yml` from a secure source
+4. run recovery with `scripts/rebuild_from_zero_lab.sh --config ~/.config/proxmox-remote-dev-platform/site.yml`, or manually materialize with `scripts/materialize_site_config.py`
 5. run repo validation before commit/push
-6. run deploy validation before any apply/playbook step
+6. run deploy validation before any apply/playbook step in a materialized execution context

@@ -7,7 +7,7 @@ Usage:
   scripts/rebuild_from_zero_lab.sh [--config <site.yml> | --proxmox-host <host-or-ip>] [options]
 
 Bootstrap a fresh/minimal Proxmox host. In handoff mode, the external runner creates
-VM101 ansible-control, prepares it, copies the private execution clone there, then
+VM101 ansible-control, prepares it, copies a materialized execution tree there, then
 VM101 runs the remaining non-GPU lab deployment.
 
 Default is check/plan mode: no destructive cleanup and no OpenTofu apply.
@@ -20,8 +20,8 @@ Options:
   --wipe-existing-guests-and-templates
                                      DANGEROUS: destroy all VMs, all CTs, and local LXC templates on the Proxmox host. Requires --apply.
   --destroy-existing                 Pass through to lab profile; destroys only VM110 and CT100. Requires --apply.
-  --private-bundle-root <path>       Materialize legacy private bundle into this clone before running.
-  --config <path>                    Materialize runtime files from one local site.yml config. Preferred over private clone.
+  --private-bundle-root <path>       Materialize legacy private bundle into this working tree before running.
+  --config <path>                    Materialize runtime files from one local site.yml config. Preferred current workflow.
   --bootstrap-runner                 Install local runner dependencies first; Debian/Ubuntu runner only.
   --with-provider-mirror             When bootstrapping runner/control VM, install bpg/proxmox provider mirror.
   --manage-apt-repos                 Let Proxmox bootstrap manage no-subscription/enterprise apt repo files.
@@ -30,7 +30,7 @@ Options:
   --manage-api-token                 Create/check Proxmox API user/token on host.
   --pull-generated-token             If host generated /root/proxmox-api-token.env, copy it into tofu/proxmox.env when local file has <REPLACE_ME>.
   --create-control-vm                Generate private control-vm auto.tfvars and create/plan VM101 ansible-control.
-  --handoff-to-control               After VM101 is ready, copy this private clone to it and run lab deployment from VM101. Requires --create-control-vm --apply.
+  --handoff-to-control               After VM101 is ready, copy this materialized execution tree to it and run lab deployment from VM101. Requires --create-control-vm --apply.
   --control-vm-name <name>           Default: ansible-control
   --control-vm-id <id>               Default: 101
   --control-vm-ip-cidr <cidr>        Default: 192.168.1.211/24
@@ -317,7 +317,7 @@ fi
 
 if [[ "$APPLY" -eq 1 && "$PULL_GENERATED_TOKEN" -eq 1 ]]; then
   if [[ -f "$TOFU_DIR/proxmox.env" ]] && grep -q '<REPLACE_ME>' "$TOFU_DIR/proxmox.env"; then
-    say "Pull generated Proxmox API token env into private clone"
+    say "Pull generated Proxmox API token env into materialized execution context"
     ssh "$PROXMOX_HOST" 'test -s /root/proxmox-api-token.env && cat /root/proxmox-api-token.env' >"$TOFU_DIR/proxmox.env"
     chmod 600 "$TOFU_DIR/proxmox.env"
   fi
@@ -382,7 +382,7 @@ EOF
   ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i "$CONTROL_INVENTORY" "$ANSIBLE_DIR/site-control-runner.yml" \
     -e "control_runner_install_provider_mirror=$(bool_text "$WITH_PROVIDER_MIRROR")" | redact
 
-  say "Copy SSH key and external private execution clone to VM101"
+  say "Copy SSH key and materialized execution tree to VM101"
   ssh "${CONTROL_SSH_ARGS[@]}" "ubuntu@${CONTROL_VM_ANSIBLE_HOST}" 'set -e; install -d -m 700 ~/.ssh'
   scp "${CONTROL_SCP_ARGS[@]}" "$ANSIBLE_KEY_FILE" "ubuntu@${CONTROL_VM_ANSIBLE_HOST}:${ANSIBLE_KEY_FILE_ON_CONTROL}"
   if [[ -f "${ANSIBLE_KEY_FILE}.pub" ]]; then

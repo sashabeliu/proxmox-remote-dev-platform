@@ -11,12 +11,8 @@ Before touching infrastructure, confirm all of the following are available:
 - replacement host hardware or equivalent virtualization target
 - Proxmox installation media
 - this repository
-- secret material required to replace placeholders in:
-  - `tofu/proxmox.env`
-  - `tofu/terraform.tfvars`
-  - `ansible/group_vars/all.yml`
-  - `ansible/group_vars/dev.yml`
-  - `ansible/group_vars/gpu_dev.yml`
+- one local private site config, normally `~/.config/proxmox-remote-dev-platform/site.yml`, created from `config/site.example.yml`
+- secret material needed by that site config, including Proxmox API token, Tailscale auth keys, code-server password, SSH key path, VM/CT IDs, and IP settings
 - access to GitHub repositories used by guest workloads
 - backups for shared storage and other non-git state
 - SSH access from operator workstation
@@ -42,11 +38,13 @@ Validation:
 Checklist:
 - clone this repository
 - review `docs/current-risks.md`
-- review `docs/private-secret-bundle-workflow.md`
+- review `docs/site-config.md`
 - review `docs/ansible-control-bootstrap.md`
-- materialize private values with `scripts/materialize_private_config.sh --bundle-root <private-bundle-root>` or the Windows wrapper
-- replace placeholder values in the required tracked sanitized files using private local values
+- create or restore `~/.config/proxmox-remote-dev-platform/site.yml` from a secure private source
+- run recovery commands with `scripts/rebuild_from_zero_lab.sh --config ~/.config/proxmox-remote-dev-platform/site.yml`
+- if materializing manually, use `scripts/materialize_site_config.py --config ~/.config/proxmox-remote-dev-platform/site.yml --repo-root "$PWD"`
 - verify no placeholder values remain before applying any change
+- use `docs/private-secret-bundle-workflow.md` only for legacy/private-bundle compatibility
 
 Suggested validation commands from repo root:
 ```bash

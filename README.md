@@ -24,20 +24,15 @@ The target outcome is:
    - bash: `bash scripts/validate_repo_safety.sh --mode repo`
    - Windows: `scripts\validate_repo_safety.cmd --mode repo`
    - GitHub Actions also runs this check on push and pull request via `.github/workflows/repo-safety.yml`
-6. Materialize private execution values into a private working copy:
-   - bash: `bash scripts/materialize_private_config.sh --bundle-root <private-bundle-root>`
-   - Windows: `scripts\materialize_private_config.cmd --bundle-root <private-bundle-root>`
-   - the bundle root may be either the repo-specific secret directory or its parent directory
-7. If you are copying values manually instead of using the helper, replace placeholders only in your private working copy or in secret-managed deployment locations:
-   - `tofu/proxmox.env`
-   - `tofu/terraform.tfvars`
-   - `ansible/group_vars/all.yml`
-   - `ansible/group_vars/dev.yml`
-   - `ansible/group_vars/gpu_dev.yml`
-8. Validate the private working copy before running apply/playbook steps:
-   - bash: `bash scripts/validate_repo_safety.sh --mode deploy`
-   - Windows: `scripts\validate_repo_safety.cmd --mode deploy`
-9. Apply provisioning from `tofu/`, then configuration from `ansible/`, then restore stateful data.
+6. Create one local private site config from the template:
+   - bash: `cp config/site.example.yml ~/.config/proxmox-remote-dev-platform/site.yml && chmod 600 ~/.config/proxmox-remote-dev-platform/site.yml`
+   - then edit `~/.config/proxmox-remote-dev-platform/site.yml`
+   - see `docs/site-config.md`
+7. For the tested non-GPU lab recovery, run from the public repo clone with `--config`:
+   - `bash scripts/rebuild_from_zero_lab.sh --config ~/.config/proxmox-remote-dev-platform/site.yml --apply --wipe-existing-guests-and-templates --manage-apt-repos --create-template --create-control-vm --handoff-to-control --with-provider-mirror`
+8. The script materializes ignored runtime files from `site.yml` for execution and handoff. Do not commit those materialized real values.
+9. Validate before commit/push with `--mode repo`; validate materialized execution contexts with `--mode deploy`.
+10. Legacy private-bundle materialization still exists for compatibility, but it is no longer the preferred source-of-truth workflow.
 
 ## Recovery flow
 
@@ -74,7 +69,8 @@ Recovery and operations:
 - `docs/tailscale-recovery.md`
 - `docs/backup-strategy.md`
 - `docs/secrets-strategy.md`
-- `docs/private-secret-bundle-workflow.md`
+- `docs/site-config.md`
+- `docs/private-secret-bundle-workflow.md` (legacy compatibility)
 - `docs/current-risks.md`
 - `docs/state-vs-reproducible-assets.md`
 
@@ -114,10 +110,13 @@ proxmox-remote-dev-platform/
     rebuild-checklist.md
     backup-strategy.md
     secrets-strategy.md
+    site-config.md
     private-secret-bundle-workflow.md
     current-risks.md
     state-vs-reproducible-assets.md
     portfolio-summary.md
+  config/
+    site.example.yml
   tofu/
   ansible/
   scripts/
@@ -147,6 +146,7 @@ Current repo state:
 - local baseline was created and pushed to GitHub
 - sanitized OpenTofu and Ansible content has been imported into the repo
 - same-path sanitized placeholders are being used for clarity
+- one local private `site.yml` is now the preferred private input; a separate maintained private repo is no longer required for the tested non-GPU lab recovery
 - command-level zero-to-lab and lab-profile rebuild runbooks are documented and tested for the non-GPU lab scope
 - the platform is documented, but not yet fully disaster-recovery hardened for production/GPU/stateful data
 

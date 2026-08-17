@@ -1,11 +1,13 @@
-# Private Secret Bundle Workflow
+# Private Secret Bundle Workflow (Legacy Compatibility)
 
 ## Purpose
 
-This document defines the minimum safe workflow for storing and restoring the unsanitized execution files required by this platform.
+The preferred workflow is now documented in `docs/site-config.md`: one public repo clone plus one local private `~/.config/proxmox-remote-dev-platform/site.yml`.
+
+This document remains for legacy compatibility with older private-bundle/private-clone runbooks. Use it only when you intentionally need the old bundle layout.
 
 The public repository keeps sanitized placeholders in their real relative paths.
-The private bundle keeps the real values outside git.
+The legacy private bundle keeps real values outside git and mirrors those paths.
 
 ## Scope
 
@@ -117,11 +119,16 @@ Expected result:
 
 ## Operational guidance
 
-Preferred operator pattern:
+Preferred current pattern:
+- keep one public/safe repo clone as the source of truth
+- keep one local private `site.yml` outside git
+- let `scripts/rebuild_from_zero_lab.sh --config ...` or `scripts/materialize_site_config.py` generate runtime execution files when needed
+
+Legacy/private-bundle pattern:
 - keep one public/safe working copy for documentation and git work
 - keep one private execution working copy for running OpenTofu and Ansible with real values
 
-This reduces the chance of accidentally committing secret substitutions.
+The legacy pattern reduces accidental commits, but it duplicates the repo and is no longer required for the tested non-GPU lab recovery.
 
 ## Recommended backup checklist
 

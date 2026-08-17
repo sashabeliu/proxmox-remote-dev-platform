@@ -2,8 +2,8 @@
 """Materialize runtime deployment files from one local site config.
 
 The config file is intentionally local/private. The repo carries only
-config/site.example.yml. This script writes the same runtime files the older
-private-bundle workflow used, plus an optional shell env file for wrapper scripts.
+config/site.example.yml. This script writes the runtime files expected by OpenTofu/Ansible execution,
+plus an optional shell env file for wrapper scripts.
 """
 from __future__ import annotations
 

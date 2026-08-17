@@ -47,6 +47,6 @@ Configuration:
 ## Important risk observations
 - no Proxmox scheduled backup jobs were observed
 - OpenTofu state is stored locally on the VM
-- infrastructure directories were not yet in git
-- secrets are mixed into live configuration on the control VM
+- infrastructure directories were not yet in git at initial audit time; their sanitized contents are now imported into this repo
+- live secrets were mixed into configuration on the original control VM; current recovery prefers one local private `site.yml` plus generated runtime files
 - application repos on guest VMs contain local drift that is not yet captured in this recovery repo

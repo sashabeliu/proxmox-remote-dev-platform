@@ -161,7 +161,7 @@ pct exec 100 -- ls -l /etc/iptables/rules.v4 /etc/iptables/rules.v6
 
 ## Recovery steps for Tailscale LXC
 
-From the private control VM clone:
+From the generated VM101 execution directory created by the site-config handoff:
 
 ```bash
 cd /home/ubuntu/proxmox-remote-dev-platform-private/tofu
@@ -196,7 +196,7 @@ ANSIBLE_HOST_KEY_CHECKING=False ansible -i inventory/hosts.ini tailscale_lxc -m 
 ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i inventory/hosts.ini site.yml --limit tailscale_lxc
 ```
 
-For a lab rebuild where the LXC is named `tailscale-rulab` and uses IP `192.168.1.213/24`, override both private maps consistently:
+For the current lab rebuild, the LXC is named `tailscale-rulab` and uses IP `192.168.1.212/24`; keep the OpenTofu map, Ansible host map, script `LXC_TARGET`, and inventory aligned. Equivalent private/generated maps are:
 
 ```yaml
 # ansible/group_vars/proxmox_hosts.yml
@@ -275,7 +275,7 @@ This means copied long-lived auth keys are not a reliable recovery artifact. Doc
 
 During the later `tailscale-rulab` LXC rehearsal:
 - CT `100` was created on `proxmox-rulab` as `tailscale-rulab`
-- lab IP was set to `192.168.1.213/24` to avoid colliding with the original `192.168.1.100`
+- lab IP is `192.168.1.212/24` in the current one-config lab profile
 - `/dev/net/tun` was exposed into the LXC using the same raw LXC settings as the original container
 - Tailscale `1.102.2` was installed from `pkgs.tailscale.com`
 - `tailscaled` was enabled and running
@@ -291,7 +291,7 @@ The live remap rules applied on `tailscale-rulab` were:
 -A POSTROUTING -d 192.168.1.0/24 -j NETMAP --to 192.168.2.0/24
 ```
 
-At the time of writing, the node was connected to Tailscale but route activation still depended on the Tailnet admin route approval / auto-approval state.
+Latest verification showed the current rebuilt node connected to Tailscale with `BackendState=Running`; `PrimaryRoutes` and `AllowedIPs` both include `192.168.2.0/24`. For future destructive recreates, route approval or ACL auto-approval remains an explicit validation step because a new node identity may be created.
 
 ## Known gaps
 - fresh Tailscale auth-key generation is documented but not yet fully automated in repo scripts
